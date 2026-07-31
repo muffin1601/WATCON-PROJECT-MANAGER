@@ -1,0 +1,91 @@
+.wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 220px;
+}
+.icon {
+  position: absolute;
+  left: 10px;
+  color: #9dbcc2;
+  pointer-events: none;
+}
+.input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  padding: 7px 10px 7px 30px;
+  font-size: 13px;
+  color: #fff;
+}
+.input::placeholder {
+  color: #9dbcc2;
+}
+.input:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  /* No min-width: left/right:0 already matches the input's own width, and a
+     fixed min-width here would force the panel wider than a narrow (e.g.
+     320px) viewport, causing horizontal page overflow. */
+  max-width: calc(100vw - 24px);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  max-height: 360px;
+  overflow-y: auto;
+  z-index: 60;
+}
+.empty {
+  padding: 14px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  text-decoration: none;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.item:last-child {
+  border-bottom: none;
+}
+.item:hover {
+  background: var(--primary-soft);
+}
+.type {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--primary-dark);
+  background: var(--primary-soft);
+  border-radius: 99px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+.title {
+  font-weight: 600;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.subtitle {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}

@@ -1,0 +1,13 @@
+.track {
+  height: 5px;
+  background: #e2e9ea;
+  border-radius: 99px;
+  margin-top: 10px;
+  grid-column: 1 / -1;
+  overflow: hidden;
+}
+.fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 99px;
+}

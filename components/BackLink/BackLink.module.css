@@ -1,0 +1,13 @@
+.back {
+  border: none;
+  background: none;
+  color: var(--primary-dark);
+  font-weight: 700;
+  font-size: 13.5px;
+  padding: 0;
+  margin-bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+}

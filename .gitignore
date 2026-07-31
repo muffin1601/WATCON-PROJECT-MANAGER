@@ -1,0 +1,19 @@
+# dependencies
+/node_modules
+
+# next.js build output
+/.next/
+/out/
+tsconfig.tsbuildinfo
+
+# env files — never commit real credentials
+.env
+.env*.local
+
+# misc
+.DS_Store
+*.pem
+npm-debug.log*
+
+# prisma
+/prisma/*.db

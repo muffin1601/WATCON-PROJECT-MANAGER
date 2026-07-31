@@ -1,0 +1,49 @@
+.plist {
+  display: grid;
+  gap: 12px;
+}
+
+.pitem {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  padding: 16px 18px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  text-decoration: none;
+  color: inherit;
+}
+.pitem:hover {
+  border-color: var(--primary);
+}
+.pitem h4 {
+  font-size: 16px;
+  font-weight: 700;
+}
+.sub {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.nums {
+  text-align: right;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.nums .money {
+  font-size: 15px;
+  color: var(--ink);
+}
+
+@media (max-width: 640px) {
+  .pitem {
+    grid-template-columns: 1fr;
+  }
+  .nums {
+    text-align: left;
+  }
+}

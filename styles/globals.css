@@ -1,0 +1,72 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  line-height: 1.25;
+}
+
+.money {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Ported from the prototype's .mono and .note utility classes — .mono was
+   missed in the original Phase 2 port, leaving bill/challan numbers in the
+   sans face instead of IBM Plex Mono. */
+.mono {
+  font-family: var(--mono);
+  white-space: nowrap;
+}
+.note {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* Ported from #printArea{display:none} + the @media print block in the
+   prototype: only the portaled print document is visible on a real print job. */
+#printArea {
+  display: none;
+}
+@media print {
+  body > *:not(#printArea) {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+  #printArea {
+    display: block !important;
+  }
+}

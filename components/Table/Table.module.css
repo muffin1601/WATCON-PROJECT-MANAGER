@@ -1,0 +1,49 @@
+.wrap {
+  overflow-x: auto;
+}
+
+.tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.tbl :global(th) {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 2px solid var(--line);
+  white-space: nowrap;
+}
+.tbl :global(td) {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.tbl :global(tr:last-child td) {
+  border-bottom: none;
+}
+.tbl :global(tfoot td) {
+  font-weight: 600;
+  border-top: 2px solid var(--ink);
+  border-bottom: none;
+}
+
+/* The prototype's `table.tbl td.r, table.tbl th.r { text-align:right }`
+   outranks its generic `table.tbl th { text-align:left }`. In CSS-module
+   form, a bare `.r` (0,1,0) LOSES to `.tbl :global(th)` (0,1,1) — so the
+   compound `.tbl .r` (0,2,0) is required for numeric column HEADERS to
+   right-align like the prototype, not just the cells. */
+.r,
+.tbl .r {
+  text-align: right;
+}
+
+.empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 40px 20px;
+  font-size: 14px;
+}

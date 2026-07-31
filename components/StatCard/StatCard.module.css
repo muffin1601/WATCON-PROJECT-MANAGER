@@ -1,0 +1,28 @@
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.hl {
+  border-left: 3px solid var(--primary);
+}
+.lbl {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+}
+.val {
+  font-family: var(--mono);
+  font-size: 19px;
+  font-weight: 600;
+  margin-top: 6px;
+}
+.pos {
+  color: var(--ok);
+}
+.neg {
+  color: var(--danger);
+}

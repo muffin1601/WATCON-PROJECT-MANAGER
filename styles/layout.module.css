@@ -1,0 +1,12 @@
+/* Ported from `main{max-width:1180px;margin:0 auto;padding:24px 20px 80px}` */
+.main {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 24px 20px 80px;
+}
+
+@media (max-width: 640px) {
+  .main {
+    padding: 16px 12px 70px;
+  }
+}

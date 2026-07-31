@@ -1,0 +1,31 @@
+/*
+  Design tokens ported verbatim from reference/watcon-project-management.html.
+  Do not change these values without an explicit design change request —
+  the HTML prototype is the pixel-exact spec for this app.
+*/
+:root {
+  --ink: #12262e;
+  --muted: #5b6e74;
+  --bg: #eff3f4;
+  --surface: #ffffff;
+
+  --primary: #0e6e7a;
+  --primary-dark: #0a4e57;
+  --primary-soft: #e2f0f1;
+
+  --accent: #c99a3c;
+  --line: #d6dfe1;
+
+  --ok: #1e7f4f;
+  --ok-soft: #e4f2ea;
+  --danger: #b3372e;
+  --danger-soft: #f7e7e5;
+  --warn: #9a6a15;
+  --warn-soft: #f6eedb;
+
+  --radius: 10px;
+  --shadow: 0 1px 3px rgba(18, 38, 46, 0.08), 0 4px 14px rgba(18, 38, 46, 0.05);
+
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  --sans: "Archivo", system-ui, sans-serif;
+}

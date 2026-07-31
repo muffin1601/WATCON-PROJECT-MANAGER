@@ -1,0 +1,25 @@
+.tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 2px solid var(--line);
+  margin: 18px 0;
+  overflow-x: auto;
+  /* Keep the overflow behavior but stop Windows' chunky scrollbar from
+     rendering as a thick grey bar under the tab row. */
+  scrollbar-width: thin;
+}
+.tabs button {
+  border: none;
+  background: none;
+  padding: 10px 15px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--muted);
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  white-space: nowrap;
+}
+.on {
+  color: var(--primary-dark);
+  border-bottom-color: var(--primary);
+}

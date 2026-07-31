@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Watcon Project Management Software</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#12262E; --muted:#5B6E74; --bg:#EFF3F4; --surface:#FFFFFF;
+  --primary:#0E6E7A; --primary-dark:#0A4E57; --primary-soft:#E2F0F1;
+  --accent:#C99A3C; --line:#D6DFE1; --ok:#1E7F4F; --ok-soft:#E4F2EA;
+  --danger:#B3372E; --danger-soft:#F7E7E5; --warn:#9A6A15; --warn-soft:#F6EEDB;
+  --radius:10px; --shadow:0 1px 3px rgba(18,38,46,.08), 0 4px 14px rgba(18,38,46,.05);
+  --mono:'IBM Plex Mono',ui-monospace,monospace; --sans:'Archivo',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{font-family:var(--sans);background:var(--bg);color:var(--ink);font-size:15px;line-height:1.5}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:14px;color:var(--ink)}
+h1,h2,h3,h4{line-height:1.25}
+.mono{font-family:var(--mono)}
+.money{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* ---------- Header ---------- */
+header.app{background:var(--ink);color:#fff;position:sticky;top:0;z-index:50}
+header.app .bar{max-width:1180px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:10px}
+.brand b{font-size:19px;font-weight:800;letter-spacing:.3px}
+.brand span{font-size:11.5px;color:#9DBCC2;letter-spacing:.14em;text-transform:uppercase}
+.waterline{height:3px;background:linear-gradient(90deg,var(--primary) 0%,#35C4CF 45%,var(--accent) 100%)}
+nav.top{margin-left:auto;display:flex;gap:8px}
+nav.top button{background:transparent;border:1px solid rgba(255,255,255,.25);color:#E8F1F2;border-radius:8px;padding:7px 14px;font-size:13.5px;font-weight:600}
+nav.top button:hover{background:rgba(255,255,255,.1)}
+nav.top button.primary{background:var(--primary);border-color:var(--primary)}
+nav.top button.primary:hover{background:var(--primary-dark)}
+
+main{max-width:1180px;margin:0 auto;padding:24px 20px 80px}
+
+/* ---------- Cards & layout ---------- */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.card .hd{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.card .hd h3{font-size:15px;font-weight:700}
+.card .bd{padding:18px}
+.grid{display:grid;gap:16px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px}
+.stat .lbl{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.stat .val{font-family:var(--mono);font-size:19px;font-weight:600;margin-top:6px}
+.stat.hl{border-left:3px solid var(--primary)}
+.stat .val.pos{color:var(--ok)} .stat .val.neg{color:var(--danger)}
+
+/* ---------- Forms ---------- */
+label.f{display:block;margin-bottom:14px}
+label.f span.t{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:5px;letter-spacing:.02em}
+input[type=text],input[type=number],input[type=date],select,textarea{
+  width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 11px;background:#fff}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--primary);outline-offset:0;border-color:var(--primary)}
+.frow{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 16px}
+.btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px 16px;font-weight:600;font-size:13.5px}
+.btn:hover{background:#F3F6F7}
+.btn.p{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.p:hover{background:var(--primary-dark)}
+.btn.d{color:var(--danger);border-color:#E4C4C0}
+.btn.d:hover{background:var(--danger-soft)}
+.btn.sm{padding:5px 10px;font-size:12.5px}
+.btn.ghost{border:none;background:none;color:var(--primary);padding:6px 8px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.seg{display:flex;gap:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;width:max-content;max-width:100%;flex-wrap:wrap}
+.seg button{border:none;background:#fff;padding:8px 15px;font-size:13px;font-weight:600;color:var(--muted);border-right:1px solid var(--line)}
+.seg button:last-child{border-right:none}
+.seg button.on{background:var(--primary-soft);color:var(--primary-dark)}
+
+/* ---------- Tables ---------- */
+table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+table.tbl th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);text-align:left;padding:8px 10px;border-bottom:2px solid var(--line);white-space:nowrap}
+table.tbl td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+table.tbl tr:last-child td{border-bottom:none}
+table.tbl td.r,table.tbl th.r{text-align:right}
+table.tbl tfoot td{font-weight:600;border-top:2px solid var(--ink);border-bottom:none}
+.tbl-wrap{overflow-x:auto}
+
+/* ---------- Chips & badges ---------- */
+.chip{display:inline-block;font-size:11.5px;font-weight:700;letter-spacing:.03em;border-radius:99px;padding:3px 10px}
+.chip.teal{background:var(--primary-soft);color:var(--primary-dark)}
+.chip.gold{background:var(--warn-soft);color:var(--warn)}
+.chip.green{background:var(--ok-soft);color:var(--ok)}
+.chip.red{background:var(--danger-soft);color:var(--danger)}
+.chip.grey{background:#E7ECED;color:var(--muted)}
+
+/* ---------- Project list ---------- */
+.plist{display:grid;gap:12px}
+.pitem{display:grid;grid-template-columns:1fr auto;gap:10px;padding:16px 18px;cursor:pointer;transition:border-color .15s}
+.pitem:hover{border-color:var(--primary)}
+.pitem h4{font-size:16px;font-weight:700}
+.pitem .sub{font-size:13px;color:var(--muted);margin-top:3px}
+.pitem .nums{text-align:right;font-size:12.5px;color:var(--muted)}
+.pitem .nums .money{font-size:15px;color:var(--ink)}
+.bar-track{height:5px;background:#E2E9EA;border-radius:99px;margin-top:10px;grid-column:1/-1;overflow:hidden}
+.bar-fill{height:100%;background:var(--primary);border-radius:99px}
+
+/* ---------- Tabs ---------- */
+.tabs{display:flex;gap:2px;border-bottom:2px solid var(--line);margin:18px 0;overflow-x:auto}
+.tabs button{border:none;background:none;padding:10px 15px;font-size:13.5px;font-weight:600;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap}
+.tabs button.on{color:var(--primary-dark);border-bottom-color:var(--primary)}
+
+/* ---------- Attachments ---------- */
+.att{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;margin-bottom:8px;font-size:13px;background:#FAFBFB}
+.att .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.att .mt{color:var(--muted);font-size:12px;white-space:nowrap}
+.drop{border:2px dashed var(--line);border-radius:var(--radius);padding:26px;text-align:center;color:var(--muted);font-size:13.5px;background:#FAFBFB;cursor:pointer;transition:border-color .15s}
+.drop:hover,.drop.over{border-color:var(--primary);color:var(--primary-dark);background:var(--primary-soft)}
+
+/* ---------- Modal ---------- */
+.modal-bg{position:fixed;inset:0;background:rgba(12,26,32,.55);z-index:100;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto}
+.modal{background:#fff;border-radius:12px;max-width:760px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal .hd{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center}
+.modal .hd h3{font-size:16px;font-weight:700}
+.modal .hd button{margin-left:auto;border:none;background:none;font-size:22px;color:var(--muted);line-height:1}
+.modal .bd{padding:20px}
+.modal .ft{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end}
+
+/* ---------- Misc ---------- */
+.empty{text-align:center;color:var(--muted);padding:40px 20px;font-size:14px}
+.note{font-size:12.5px;color:var(--muted)}
+.ai-badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--primary-dark)}
+.ai-badge::before{content:'';width:8px;height:8px;border-radius:99px;background:var(--accent)}
+.spin{display:inline-block;width:15px;height:15px;border:2px solid var(--primary-soft);border-top-color:var(--primary);border-radius:99px;animation:sp .8s linear infinite;vertical-align:-3px;margin-right:7px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 20px;border-radius:9px;font-size:13.5px;font-weight:600;z-index:200;box-shadow:var(--shadow)}
+.back{border:none;background:none;color:var(--primary-dark);font-weight:700;font-size:13.5px;padding:0;margin-bottom:12px;display:inline-flex;align-items:center;gap:6px}
+
+/* ---------- Print (challan / bill) ---------- */
+#printArea{display:none}
+.doc{max-width:190mm;margin:0 auto;font-size:12px;color:#000;background:#fff}
+.doc .dhead{display:flex;justify-content:space-between;border-bottom:2.5px solid #000;padding-bottom:10px}
+.doc .dhead h1{font-size:20px;letter-spacing:.5px}
+.doc .dhead .co{font-size:11px;line-height:1.45}
+.doc .dtitle{text-align:center;font-size:14px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;margin:12px 0;border:1.5px solid #000;padding:5px}
+.doc table{width:100%;border-collapse:collapse;margin-top:8px}
+.doc table th,.doc table td{border:1px solid #000;padding:5px 7px;font-size:11.5px;text-align:left}
+.doc table td.r,.doc table th.r{text-align:right;font-family:var(--mono)}
+.doc .meta{display:flex;justify-content:space-between;gap:20px;margin-top:8px;font-size:11.5px}
+.doc .sig{display:flex;justify-content:space-between;margin-top:60px;font-size:11.5px}
+.doc .sig div{border-top:1px solid #000;padding-top:5px;width:180px;text-align:center}
+.doc-preview{border:1px solid var(--line);border-radius:8px;padding:14px;overflow-x:auto;background:#fff}
+@media print{
+  body>*{display:none !important}
+  body{background:#fff}
+  #printArea{display:block !important;font-family:var(--sans)}
+}
+@media(max-width:640px){
+  header.app .bar{padding:12px 14px}
+  main{padding:16px 12px 70px}
+  .pitem{grid-template-columns:1fr}
+  .pitem .nums{text-align:left}
+}
+</style>
+</head>
+<body>
+<header class="app">
+  <div class="bar">
+    <div class="brand"><b>WATCON</b><span>Project Management</span></div>
+    <nav class="top">
+      <button id="navDash">Projects</button>
+      <button id="navSettings">Settings</button>
+      <button id="navNew" class="primary">+ New Project</button>
+    </nav>
+  </div>
+  <div class="waterline"></div>
+</header>
+<main id="app"></main>
+<div id="printArea"></div>
+<script>
+/* ================= Watcon Project Management Software ================= */
+const WATCON_LOGO='data:image/png;base64,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';
+/* Storage: localStorage when available (Netlify deployment); in-memory fallback (Claude preview). */
+let MEM = {};
+const store = {
+  ok(){ try{ localStorage.setItem('_t','1'); localStorage.removeItem('_t'); return true; }catch(e){ return false; } },
+  get(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return MEM[k]||null; } },
+  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){ MEM[k]=v; } }
+};
+
+let state = store.get('watcon_pm') || {
+  projects: [],
+  settings: {
+    company: 'Watcon International',
+    address: 'S-36, Okhla Phase 2, New Delhi – 110020',
+    phone: '9999969661', email: 'info@watcon.net', gstin: '',
+    challanPrefix: 'WC/CH/', challanNext: 1,
+    billPrefix: 'RA-',
+    gstRate: 18,
+    apiKey: ''   // only needed after deploying outside Claude
+  }
+};
+if(!state.settings.billPrefix) state.settings.billPrefix='RA-';
+if(state.settings.company==='Watcon Pvt. Ltd.'){ // migrate old default company details
+  state.settings.company='Watcon International';
+  state.settings.address='S-36, Okhla Phase 2, New Delhi – 110020';
+  state.settings.phone=state.settings.phone||'9999969661';
+}
+if(state.settings.email===undefined) state.settings.email='info@watcon.net';
+
+function save(){ store.set('watcon_pm', state); }
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const inr = n => '₹ ' + (Number(n)||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+const dfmt = d => d ? new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+const today = () => new Date().toISOString().slice(0,10);
+
+let view = {name:'dash'};   // {name:'dash'|'new'|'project'|'settings', id, tab}
+function toast(m){ const t=document.createElement('div'); t.className='toast'; t.textContent=m; document.body.appendChild(t); setTimeout(()=>t.remove(),2600); }
+
+/* ---------------- Financial math ---------------- */
+function orderBase(p){ return (p.items||[]).reduce((s,i)=>s + (Number(i.qty)||0)*(Number(i.rate)||0), 0); }
+function amendTotal(p){ return (p.amendments||[]).reduce((s,a)=>s + (Number(a.valueChange)||0), 0); }
+function discountTotal(p){ return (p.discounts||[]).reduce((s,d)=>s + (Number(d.amount)||0), 0); }
+function gstOn(p, amt){ return p.terms && p.terms.gst==='extra' ? amt * (Number(state.settings.gstRate)||18)/100 : 0; }
+function contractValue(p){ const base = orderBase(p) + amendTotal(p) - discountTotal(p); return base + gstOn(p, base); }
+function dispatchedQty(p, itemId, uptoDate){
+  let q=0; (p.challans||[]).forEach(c=>{ if(uptoDate && c.date>uptoDate) return;
+    (c.items||[]).forEach(ci=>{ if(ci.itemId===itemId) q+=Number(ci.qty)||0; }); }); return q;
+}
+function extraQtyOf(p, itemId, uptoDate){
+  let q=0; (p.challans||[]).forEach(c=>{ if(uptoDate && c.date>uptoDate) return;
+    (c.items||[]).forEach(ci=>{ if(ci.itemId===itemId) q+=Number(ci.extraQty)||0; }); }); return q;
+}
+function customDispatched(p, uptoDate){ // items sent that are not in the sales order, aggregated
+  const map={};
+  (p.challans||[]).forEach(c=>{ if(uptoDate && c.date>uptoDate) return;
+    (c.extraItems||[]).forEach(x=>{ const k=(x.description||'').trim().toLowerCase()+'|'+(x.unit||'');
+      if(!map[k]) map[k]={description:x.description,unit:x.unit||'Nos',qty:0,rate:Number(x.rate)||0};
+      map[k].qty+=Number(x.qty)||0; if(Number(x.rate)) map[k].rate=Number(x.rate); }); });
+  return Object.values(map);
+}
+function dispatchedValue(p, uptoDate){
+  let v=0; (p.items||[]).forEach(it=>{ v += (dispatchedQty(p,it.id,uptoDate)+extraQtyOf(p,it.id,uptoDate))*(Number(it.rate)||0); });
+  customDispatched(p,uptoDate).forEach(x=>{ v += x.qty*(x.rate||0); });
+  // items on challans not linked to sales order (attached Zoho challans with own value)
+  (p.challans||[]).forEach(c=>{ if(uptoDate && c.date>uptoDate) return; if(c.manualValue) v+=Number(c.manualValue)||0; });
+  return v;
+}
+function challanValue(p,c){
+  if(c.manualValue) return Number(c.manualValue)||0;
+  let v=0; (c.items||[]).forEach(ci=>{ const it=p.items.find(x=>x.id===ci.itemId); if(it) v+=((Number(ci.qty)||0)+(Number(ci.extraQty)||0))*(Number(it.rate)||0); });
+  (c.extraItems||[]).forEach(x=>{ v+=(Number(x.qty)||0)*(Number(x.rate)||0); });
+  return v;
+}
+const APP_PWD='pincode110020';
+/* Browser prompt()/confirm() are blocked in some environments (e.g. Claude preview), so we use in-app popups. */
+function pwdModal(action, onOk){
+  const bg=modal('Password required',`
+    <p class="note" style="margin-bottom:10px">Enter the password to <b>${esc(action)}</b> this challan.</p>
+    <input type="password" id="pw_in" placeholder="Password" autocomplete="off">
+    <p class="note" id="pw_err" style="color:var(--danger);margin-top:8px;display:none">Incorrect password.</p>`,
+    `<button class="btn" id="mCancel">Cancel</button><button class="btn p" id="mOk">Continue</button>`);
+  const inp=bg.querySelector('#pw_in'); setTimeout(()=>inp.focus(),50);
+  function go(){ if(inp.value===APP_PWD){ bg.remove(); onOk(); } else { bg.querySelector('#pw_err').style.display='block'; inp.select(); } }
+  bg.querySelector('#mOk').onclick=go;
+  inp.onkeydown=e=>{ if(e.key==='Enter') go(); };
+  bg.querySelector('#mCancel').onclick=()=>bg.remove();
+}
+function confirmModal(msg, onYes){
+  const bg=modal('Please confirm',`<p style="font-size:14px">${esc(msg)}</p>`,
+    `<button class="btn" id="mCancel">Cancel</button><button class="btn d" id="mYes" style="background:var(--danger);color:#fff;border-color:var(--danger)">Yes, continue</button>`);
+  bg.querySelector('#mCancel').onclick=()=>bg.remove();
+  bg.querySelector('#mYes').onclick=()=>{ bg.remove(); onYes(); };
+}
+function paidTotal(p){ return (p.payments||[]).reduce((s,x)=>s+(Number(x.amount)||0),0); }
+function billedTotal(p){ return (p.bills||[]).reduce((s,b)=>s+(Number(b.netPayable)||0),0); }
+
+/* ---------------- File helpers ---------------- */
+function readFile(file){ return new Promise((res,rej)=>{ const r=new FileReader();
+  r.onload=()=>res({name:file.name, type:file.type, size:file.size, data:r.result.split(',')[1], added:today()});
+  r.onerror=()=>rej(new Error('read failed')); r.readAsDataURL(file); }); }
+function downloadAtt(a){ const link=document.createElement('a'); link.href=`data:${a.type};base64,${a.data}`; link.download=a.name; link.click(); }
+function attRow(a, onDel){
+  const d=document.createElement('div'); d.className='att';
+  d.innerHTML=`<span class="nm">📎 ${esc(a.name)}</span><span class="mt">${dfmt(a.added)}</span>`;
+  const v=document.createElement('button'); v.className='btn sm'; v.textContent='View / Download'; v.onclick=()=>downloadAtt(a); d.appendChild(v);
+  if(onDel){ const x=document.createElement('button'); x.className='btn sm d'; x.textContent='Remove'; x.onclick=onDel; d.appendChild(x); }
+  return d;
+}
+
+/* ---------------- Claude AI ---------------- */
+async function askClaude(contentBlocks, maxTokens){
+  const headers={'Content-Type':'application/json'};
+  if(state.settings.apiKey){ headers['x-api-key']=state.settings.apiKey; headers['anthropic-version']='2023-06-01'; headers['anthropic-dangerous-direct-browser-access']='true'; }
+  const r = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers,
+    body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:maxTokens||3000,messages:[{role:'user',content:contentBlocks}]})});
+  const data = await r.json();
+  if(!data.content) throw new Error(data.error?.message || 'AI request failed');
+  return data.content.map(b=>b.text||'').join('\n');
+}
+function fileBlock(att){
+  if(att.type==='application/pdf') return {type:'document',source:{type:'base64',media_type:'application/pdf',data:att.data}};
+  if(att.type.startsWith('image/')) return {type:'image',source:{type:'base64',media_type:att.type,data:att.data}};
+  return null;
+}
+async function extractOrder(att){
+  const fb = fileBlock(att);
+  if(!fb) throw new Error('AI can read PDF or image files only. For Word/Excel, please export as PDF.');
+  if(att.size > 25*1024*1024) throw new Error('File is larger than 25 MB — please compress the PDF and try again.');
+  const prompt = `You are reading a Purchase Order or BOQ / approved quotation for Watcon (swimming pools, water bodies, tiles, fireplaces, sauna/steam/spa equipment supply & installation).
+Extract the data and respond ONLY with valid JSON, no markdown fences, no commentary:
+{
+ "clientName": "", "poNumber": "", "poDate": "YYYY-MM-DD or empty",
+ "siteAddress": "",
+ "terms": { "gst": "included|extra|unknown", "transport": "included|extra|unknown", "payment": "payment terms text or empty" },
+ "items": [ { "description": "", "unit": "e.g. Nos/Sqft/Mtr/Lot", "qty": 0, "rate": 0 } ]
+}
+STRICT RULES to keep the output compact:
+- Include ONLY real billable line items: rows that have a numeric quantity, a rate, and an amount.
+- SKIP rows where the quantity is "RO", blank, or zero, and skip Make/Brand rows, Note rows, section headings, design details, and descriptive specification lines.
+- Keep each description SHORT: max 12 words, prefixed with its section when helpful (e.g. "Jacuzzi - Piping cPVC 2.5 inch"). Never copy multi-line specification text.
+- qty and rate must be plain numbers (no commas). Use the item rate, not the amount.
+- If a value is not found use empty string, 0, or "unknown".
+- Large BOQs can have 50-100 items; include every qualifying item but nothing else.`;
+  const txt = await askClaude([fb,{type:'text',text:prompt}], 16000);
+  let clean = txt.replace(/```json|```/g,'').trim();
+  clean = clean.slice(clean.indexOf('{'), clean.lastIndexOf('}')+1);
+  try{
+    return JSON.parse(clean);
+  }catch(e){
+    // The reply may have been truncated mid-list on very large BOQs: salvage the complete items.
+    const cut = clean.lastIndexOf('},');
+    if(cut>0){
+      const repaired = clean.slice(0,cut+1) + ']}';
+      try{ const j=JSON.parse(repaired); j._truncated=true; return j; }catch(e2){}
+    }
+    throw new Error('The document is very large and the AI reply could not be fully read. Try splitting the BOQ into 2 smaller PDFs and attach them one by one.');
+  }
+}
+/* ---------------- Render router ---------------- */
+const app = document.getElementById('app');
+function render(){
+  if(view.name==='dash') renderDash();
+  else if(view.name==='new') renderNew();
+  else if(view.name==='project') renderProject();
+  else if(view.name==='settings') renderSettings();
+  window.scrollTo(0,0);
+}
+document.getElementById('navDash').onclick=()=>{view={name:'dash'};render();};
+document.getElementById('navNew').onclick=()=>{view={name:'new'};render();};
+document.getElementById('navSettings').onclick=()=>{view={name:'settings'};render();};
+
+/* ---------------- Dashboard ---------------- */
+function renderDash(){
+  const ps = state.projects;
+  let totC=0,totD=0,totP=0;
+  ps.forEach(p=>{ totC+=contractValue(p); totD+=dispatchedValue(p); totP+=paidTotal(p); });
+  app.innerHTML = `
+    <div class="stats" style="margin-bottom:20px">
+      <div class="stat hl"><div class="lbl">Active Projects</div><div class="val">${ps.filter(p=>p.status!=='Completed').length}</div></div>
+      <div class="stat"><div class="lbl">Total Contract Value</div><div class="val">${inr(totC)}</div></div>
+      <div class="stat"><div class="lbl">Material Sent (value)</div><div class="val">${inr(totD)}</div></div>
+      <div class="stat"><div class="lbl">Payments Received</div><div class="val pos">${inr(totP)}</div></div>
+      <div class="stat"><div class="lbl">Outstanding</div><div class="val ${totD-totP>0?'neg':''}">${inr(Math.max(totD-totP,0))}</div></div>
+    </div>
+    <div class="card"><div class="hd"><h3>Projects</h3>
+      <input type="text" id="srch" placeholder="Search client / site / project…" style="max-width:280px;margin-left:auto">
+    </div><div class="bd"><div class="plist" id="plist"></div></div></div>`;
+  const list = document.getElementById('plist');
+  function draw(f){
+    list.innerHTML='';
+    const rows = ps.filter(p=>!f || (p.name+' '+p.client+' '+(p.site||'')).toLowerCase().includes(f));
+    if(!rows.length){ list.innerHTML='<div class="empty">No projects yet. Click <b>+ New Project</b> to add your first project.</div>'; return; }
+    rows.slice().reverse().forEach(p=>{
+      const cv=contractValue(p), dv=dispatchedValue(p), pd=paidTotal(p);
+      const pct = cv>0? Math.min(100, dv/cv*100):0;
+      const el=document.createElement('div'); el.className='card pitem';
+      el.innerHTML=`<div><h4>${esc(p.name)}</h4><div class="sub">${esc(p.client)} · ${esc(p.site||'')} · <span class="chip teal">${esc(p.type)}</span> <span class="chip ${p.status==='Completed'?'green':p.status==='On Hold'?'gold':'grey'}">${esc(p.status)}</span></div></div>
+      <div class="nums">Contract <span class="money">${inr(cv)}</span><br>Sent <span class="money">${inr(dv)}</span> · Received <span class="money" style="color:var(--ok)">${inr(pd)}</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>`;
+      el.onclick=()=>{view={name:'project',id:p.id,tab:'overview'};render();};
+      list.appendChild(el);
+    });
+  }
+  draw('');
+  document.getElementById('srch').oninput=e=>draw(e.target.value.toLowerCase());
+}
+
+/* ---------------- New project ---------------- */
+let draft = null;
+function renderNew(){
+  draft = { id:uid(), created:today(), name:'', client:'', site:'', type:'Swimming Pool', status:'In Progress',
+    approval:{ mode:'Purchase Order', basis:'', attachments:[] }, orderAttachment:null,
+    terms:{gst:'extra',transport:'extra',payment:''}, poNumber:'', poDate:'',
+    items:[], challans:[], bills:[], payments:[], discounts:[], amendments:[] };
+  app.innerHTML = `
+  <button class="back" id="bk">← Back to projects</button>
+  <div class="card"><div class="hd"><h3>New Project</h3></div><div class="bd">
+    <div class="frow">
+      <label class="f"><span class="t">Project name *</span><input type="text" id="f_name" placeholder="e.g. DLF Camellias – Pool & Spa"></label>
+      <label class="f"><span class="t">Client name *</span><input type="text" id="f_client"></label>
+      <label class="f"><span class="t">Site / location</span><input type="text" id="f_site"></label>
+      <label class="f"><span class="t">Project type</span><select id="f_type">
+        <option>Swimming Pool</option><option>Water Body / Fountain</option><option>Tiles – Supply</option>
+        <option>Tiles – Supply & Install</option><option>Fireplace</option><option>Sauna / Steam / Spa</option><option>Mixed Scope</option>
+      </select></label>
+    </div>
+    <h3 style="font-size:14px;margin:8px 0 12px;border-top:1px solid var(--line);padding-top:16px">Basis of approval</h3>
+    <div class="seg" id="apMode">
+      <button data-v="Purchase Order" class="on">Purchase Order</button>
+      <button data-v="Quote – Email approval">Quote – Email</button>
+      <button data-v="Quote – WhatsApp approval">Quote – WhatsApp</button>
+      <button data-v="Quote – Verbal approval">Quote – Verbal</button>
+    </div>
+    <p class="note" id="apNote" style="margin:10px 0 6px"></p>
+    <div id="apAtt"></div>
+    <div class="frow" style="margin-top:14px">
+      <label class="f"><span class="t">PO / Reference number</span><input type="text" id="f_po"></label>
+      <label class="f"><span class="t">PO / Approval date</span><input type="date" id="f_podate" value="${today()}"></label>
+    </div>
+    <h3 style="font-size:14px;margin:8px 0 12px;border-top:1px solid var(--line);padding-top:16px">Terms</h3>
+    <div class="frow">
+      <label class="f"><span class="t">GST</span><select id="f_gst"><option value="extra">Extra (${state.settings.gstRate}%)</option><option value="included">Included in rates</option></select></label>
+      <label class="f"><span class="t">Transport</span><select id="f_tr"><option value="extra">Extra at actuals</option><option value="included">Included</option></select></label>
+      <label class="f"><span class="t">Payment terms</span><input type="text" id="f_pay" placeholder="e.g. 50% advance, 40% on delivery, 10% on completion"></label>
+    </div>
+    <h3 style="font-size:14px;margin:8px 0 6px;border-top:1px solid var(--line);padding-top:16px">Order copy (PO / BOQ / approved quotation)</h3>
+    <p class="note" style="margin-bottom:10px">Attach the PDF or image — Claude will read it and prepare the Sales Order automatically. You can review and edit before saving.</p>
+    <div class="drop" id="orderDrop">Drop the PO / BOQ / quotation here, or click to choose a file</div>
+    <input type="file" id="orderFile" accept="application/pdf,image/*" style="display:none">
+    <div id="orderAttBox" style="margin-top:10px"></div>
+    <div id="aiStatus" style="margin-top:8px"></div>
+    <div id="soEditor" style="margin-top:14px"></div>
+    <div style="display:flex;gap:10px;margin-top:20px;border-top:1px solid var(--line);padding-top:16px">
+      <button class="btn p" id="saveProj">Save project</button>
+      <button class="btn" id="addItemBtn">+ Add sales order item manually</button>
+    </div>
+  </div></div>`;
+  document.getElementById('bk').onclick=()=>{view={name:'dash'};render();};
+
+  // approval mode segmented control
+  const apNote=document.getElementById('apNote');
+  function apHint(){
+    const m=draft.approval.mode;
+    apNote.textContent = m==='Purchase Order' ? 'Attach the purchase order copy below (it will also be read by AI to build the sales order).'
+      : m==='Quote – Email approval' ? 'Attach a copy of the approval email (PDF or screenshot) here:'
+      : m==='Quote – WhatsApp approval' ? 'Attach the WhatsApp approval screenshot here:'
+      : 'Verbal approval — note who approved and when:';
+    const box=document.getElementById('apAtt'); box.innerHTML='';
+    if(m==='Quote – Verbal approval'){
+      const inp=document.createElement('input'); inp.type='text'; inp.placeholder='e.g. Approved by Mr. Sharma on call, 12 Jan';
+      inp.value=draft.approval.basis; inp.oninput=e=>draft.approval.basis=e.target.value; box.appendChild(inp);
+    } else if(m!=='Purchase Order'){
+      const d=document.createElement('div'); d.className='drop'; d.textContent='Attach approval copy (screenshot / PDF)';
+      const fi=document.createElement('input'); fi.type='file'; fi.accept='application/pdf,image/*'; fi.style.display='none';
+      d.onclick=()=>fi.click();
+      fi.onchange=async e=>{ if(!e.target.files[0])return; const a=await readFile(e.target.files[0]); draft.approval.attachments.push(a); apHint(); };
+      box.appendChild(d); box.appendChild(fi);
+      draft.approval.attachments.forEach((a,i)=>box.appendChild(attRow(a,()=>{draft.approval.attachments.splice(i,1);apHint();})));
+    }
+  }
+  document.querySelectorAll('#apMode button').forEach(b=>b.onclick=()=>{
+    document.querySelectorAll('#apMode button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+    draft.approval.mode=b.dataset.v; apHint();
+  });
+  apHint();
+
+  // order file + AI
+  const drop=document.getElementById('orderDrop'), fi=document.getElementById('orderFile');
+  drop.onclick=()=>fi.click();
+  drop.ondragover=e=>{e.preventDefault();drop.classList.add('over');};
+  drop.ondragleave=()=>drop.classList.remove('over');
+  drop.ondrop=e=>{e.preventDefault();drop.classList.remove('over'); if(e.dataTransfer.files[0]) handleOrderFile(e.dataTransfer.files[0]);};
+  fi.onchange=e=>{ if(e.target.files[0]) handleOrderFile(e.target.files[0]); };
+  async function handleOrderFile(f){
+    const st=document.getElementById('aiStatus');
+    try{
+      const a=await readFile(f); draft.orderAttachment=a;
+      document.getElementById('orderAttBox').innerHTML=''; document.getElementById('orderAttBox').appendChild(attRow(a,()=>{draft.orderAttachment=null;document.getElementById('orderAttBox').innerHTML='';}));
+      st.innerHTML='<span class="spin"></span><span class="ai-badge">Claude is reading the document and preparing the sales order…</span>';
+      const j = await extractOrder(a);
+      st.innerHTML='<span class="ai-badge">Sales order drafted — '+((j.items||[]).length)+' items read from the document. Review below and edit if needed.</span>'+(j._truncated?' <span class="chip gold">Partial: the document was very large, last few items may be missing — please verify.</span>':'');
+      if(j.clientName && !document.getElementById('f_client').value) document.getElementById('f_client').value=j.clientName;
+      if(j.siteAddress && !document.getElementById('f_site').value) document.getElementById('f_site').value=j.siteAddress;
+      if(j.poNumber) document.getElementById('f_po').value=j.poNumber;
+      if(j.poDate) document.getElementById('f_podate').value=j.poDate;
+      if(j.terms){ if(j.terms.gst==='included')document.getElementById('f_gst').value='included';
+        if(j.terms.transport==='included')document.getElementById('f_tr').value='included';
+        if(j.terms.payment)document.getElementById('f_pay').value=j.terms.payment; }
+      draft.items=(j.items||[]).map(it=>({id:uid(),description:it.description,unit:it.unit||'Nos',qty:Number(it.qty)||0,rate:Number(it.rate)||0}));
+      drawSOEditor();
+    }catch(err){
+      st.innerHTML=`<span class="chip red">AI reading failed</span> <span class="note">${esc(err.message)} — you can still add items manually.</span>`;
+    }
+  }
+  document.getElementById('addItemBtn').onclick=()=>{ draft.items.push({id:uid(),description:'',unit:'Nos',qty:1,rate:0}); drawSOEditor(); };
+  function drawSOEditor(){
+    const box=document.getElementById('soEditor');
+    if(!draft.items.length){box.innerHTML='';return;}
+    let h=`<h3 style="font-size:14px;margin-bottom:8px">Sales Order items</h3><div class="tbl-wrap"><table class="tbl"><thead><tr><th style="width:44%">Description</th><th>Unit</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Amount</th><th></th></tr></thead><tbody>`;
+    draft.items.forEach((it,i)=>{ h+=`<tr>
+      <td><input type="text" data-i="${i}" data-f="description" value="${esc(it.description)}"></td>
+      <td><input type="text" data-i="${i}" data-f="unit" value="${esc(it.unit)}" style="width:70px"></td>
+      <td><input type="number" data-i="${i}" data-f="qty" value="${it.qty}" style="width:90px;text-align:right"></td>
+      <td><input type="number" data-i="${i}" data-f="rate" value="${it.rate}" style="width:110px;text-align:right"></td>
+      <td class="r money">${inr(it.qty*it.rate)}</td>
+      <td><button class="btn sm d" data-del="${i}">×</button></td></tr>`; });
+    const base=orderBase(draft), gst=document.getElementById('f_gst').value==='extra'?base*state.settings.gstRate/100:0;
+    h+=`</tbody><tfoot><tr><td colspan="4" class="r">Basic value</td><td class="r money">${inr(base)}</td><td></td></tr>
+    ${gst?`<tr><td colspan="4" class="r">GST ${state.settings.gstRate}%</td><td class="r money">${inr(gst)}</td><td></td></tr>`:''}
+    <tr><td colspan="4" class="r">Order value</td><td class="r money">${inr(base+gst)}</td><td></td></tr></tfoot></table></div>`;
+    box.innerHTML=h;
+    box.querySelectorAll('input[data-i]').forEach(inp=>inp.onchange=e=>{
+      const it=draft.items[+e.target.dataset.i]; const f=e.target.dataset.f;
+      it[f]= (f==='qty'||f==='rate') ? Number(e.target.value)||0 : e.target.value; drawSOEditor(); });
+    box.querySelectorAll('button[data-del]').forEach(b=>b.onclick=()=>{draft.items.splice(+b.dataset.del,1);drawSOEditor();});
+  }
+
+  document.getElementById('saveProj').onclick=()=>{
+    draft.name=document.getElementById('f_name').value.trim();
+    draft.client=document.getElementById('f_client').value.trim();
+    if(!draft.name||!draft.client){ toast('Project name and client are required'); return; }
+    draft.site=document.getElementById('f_site').value.trim();
+    draft.type=document.getElementById('f_type').value;
+    draft.poNumber=document.getElementById('f_po').value.trim();
+    draft.poDate=document.getElementById('f_podate').value;
+    draft.terms={gst:document.getElementById('f_gst').value, transport:document.getElementById('f_tr').value, payment:document.getElementById('f_pay').value.trim()};
+    state.projects.push(draft); save(); toast('Project saved');
+    view={name:'project',id:draft.id,tab:'overview'}; render();
+  };
+}
+/* ---------------- Project detail ---------------- */
+function P(){ return state.projects.find(x=>x.id===view.id); }
+function renderProject(){
+  const p=P(); if(!p){view={name:'dash'};return render();}
+  const cv=contractValue(p), dv=dispatchedValue(p), pd=paidTotal(p), bl=billedTotal(p);
+  const tabs=[['overview','Overview'],['so','Sales Order'],['challans','Challans'],['bills','Running Bills'],['payments','Payments'],['accounts','Site Accounts'],['adjust','Discounts & Amendments'],['docs','Documents']];
+  app.innerHTML=`
+  <button class="back" id="bk">← All projects</button>
+  <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap">
+    <div style="flex:1;min-width:240px"><h2 style="font-size:22px;font-weight:800">${esc(p.name)}</h2>
+    <div class="note" style="margin-top:4px">${esc(p.client)} · ${esc(p.site||'')} · <span class="chip teal">${esc(p.type)}</span> · Approval: <b>${esc(p.approval.mode)}</b>${p.poNumber?` · Ref: ${esc(p.poNumber)}`:''}</div></div>
+    <select id="pstatus" style="width:auto"><option${p.status==='In Progress'?' selected':''}>In Progress</option><option${p.status==='On Hold'?' selected':''}>On Hold</option><option${p.status==='Completed'?' selected':''}>Completed</option></select>
+  </div>
+  <div class="stats" style="margin-top:16px">
+    <div class="stat hl"><div class="lbl">Contract Value</div><div class="val">${inr(cv)}</div></div>
+    <div class="stat"><div class="lbl">Material Sent</div><div class="val">${inr(dv)}</div></div>
+    <div class="stat"><div class="lbl">Billed (RA)</div><div class="val">${inr(bl)}</div></div>
+    <div class="stat"><div class="lbl">Received</div><div class="val pos">${inr(pd)}</div></div>
+    <div class="stat"><div class="lbl">Balance vs Material</div><div class="val ${dv-pd>0?'neg':'pos'}">${inr(dv-pd)}</div></div>
+  </div>
+  <div class="tabs">${tabs.map(t=>`<button data-t="${t[0]}" class="${view.tab===t[0]?'on':''}">${t[1]}</button>`).join('')}</div>
+  <div id="tabBody"></div>`;
+  document.getElementById('bk').onclick=()=>{view={name:'dash'};render();};
+  document.getElementById('pstatus').onchange=e=>{p.status=e.target.value;save();render();};
+  document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{view.tab=b.dataset.t;render();});
+  const body=document.getElementById('tabBody');
+  ({overview:tabOverview,so:tabSO,challans:tabChallans,bills:tabBills,payments:tabPayments,accounts:tabAccounts,adjust:tabAdjust,docs:tabDocs}[view.tab]||tabOverview)(p,body);
+}
+
+function tabOverview(p,el){
+  const base=orderBase(p), am=amendTotal(p), disc=discountTotal(p), gst=gstOn(p,base+am-disc);
+  el.innerHTML=`<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">
+  <div class="card"><div class="hd"><h3>Financial summary</h3></div><div class="bd"><div class="tbl-wrap"><table class="tbl">
+    <tr><td>Sales order basic value</td><td class="r money">${inr(base)}</td></tr>
+    <tr><td>Amendments</td><td class="r money">${inr(am)}</td></tr>
+    <tr><td>Special discounts</td><td class="r money" style="color:var(--danger)">− ${inr(disc)}</td></tr>
+    <tr><td>GST ${p.terms.gst==='extra'?`@ ${state.settings.gstRate}% (extra)`:'(included in rates)'}</td><td class="r money">${inr(gst)}</td></tr>
+    <tr><td><b>Total contract value</b></td><td class="r money"><b>${inr(contractValue(p))}</b></td></tr>
+    <tr><td>Value of material sent to site</td><td class="r money">${inr(dispatchedValue(p))}</td></tr>
+    <tr><td>Billed through running bills</td><td class="r money">${inr(billedTotal(p))}</td></tr>
+    <tr><td style="color:var(--ok)"><b>Payments received</b></td><td class="r money" style="color:var(--ok)"><b>${inr(paidTotal(p))}</b></td></tr>
+    <tr><td style="color:var(--danger)"><b>Balance (material sent − received)</b></td><td class="r money" style="color:var(--danger)"><b>${inr(dispatchedValue(p)-paidTotal(p))}</b></td></tr>
+  </table></div></div></div>
+  <div class="card"><div class="hd"><h3>Terms & approval</h3></div><div class="bd">
+    <p style="font-size:13.5px;line-height:2"><b>GST:</b> ${p.terms.gst==='extra'?'Extra':'Included'}<br>
+    <b>Transport:</b> ${p.terms.transport==='extra'?'Extra at actuals':'Included'}<br>
+    <b>Payment terms:</b> ${esc(p.terms.payment||'—')}<br>
+    <b>Approval basis:</b> ${esc(p.approval.mode)}${p.approval.basis?` — ${esc(p.approval.basis)}`:''}<br>
+    <b>PO / Ref:</b> ${esc(p.poNumber||'—')} · ${dfmt(p.poDate)}</p>
+    <div style="margin-top:10px">${p.challans.length} challan(s) issued · ${p.bills.length} running bill(s) · ${p.payments.length} payment(s)</div>
+  </div></div></div>`;
+}
+
+function tabSO(p,el){
+  let h=`<div class="card"><div class="hd"><h3>Sales Order ${p.aiGenerated?'<span class="ai-badge" style="margin-left:6px">AI-drafted</span>':''}</h3>
+    <button class="btn sm" id="soAdd" style="margin-left:auto">+ Add item</button></div><div class="bd">`;
+  if(!p.items.length) h+=`<div class="empty">No sales order items yet. Attach the PO/BOQ in Documents and re-run AI reading, or add items manually.</div>`;
+  else{
+    h+=`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>#</th><th style="width:40%">Description</th><th>Unit</th><th class="r">Ordered Qty</th><th class="r">Rate</th><th class="r">Amount</th><th class="r">Dispatched</th><th class="r">Balance Qty</th><th></th></tr></thead><tbody>`;
+    p.items.forEach((it,i)=>{ const dq=dispatchedQty(p,it.id); const eq=extraQtyOf(p,it.id);
+      h+=`<tr><td>${i+1}</td>
+      <td><input type="text" data-i="${i}" data-f="description" value="${esc(it.description)}"></td>
+      <td><input type="text" data-i="${i}" data-f="unit" value="${esc(it.unit)}" style="width:64px"></td>
+      <td class="r"><input type="number" data-i="${i}" data-f="qty" value="${it.qty}" style="width:84px;text-align:right"></td>
+      <td class="r"><input type="number" data-i="${i}" data-f="rate" value="${it.rate}" style="width:104px;text-align:right"></td>
+      <td class="r money">${inr(it.qty*it.rate)}</td>
+      <td class="r money">${dq}${eq?` <span class="chip gold" title="Additional qty beyond BOQ">+${eq}</span>`:''}</td><td class="r money" style="color:${it.qty-dq<0?'var(--danger)':'inherit'}">${it.qty-dq}</td>
+      <td><button class="btn sm d" data-del="${i}">×</button></td></tr>`; });
+    h+=`</tbody><tfoot><tr><td colspan="5" class="r">Basic value</td><td class="r money">${inr(orderBase(p))}</td><td colspan="3"></td></tr></tfoot></table></div>`;
+  }
+  h+=`</div></div>`; el.innerHTML=h;
+  document.getElementById('soAdd').onclick=()=>{p.items.push({id:uid(),description:'',unit:'Nos',qty:1,rate:0});save();render();};
+  el.querySelectorAll('input[data-i]').forEach(inp=>inp.onchange=e=>{
+    const it=p.items[+e.target.dataset.i], f=e.target.dataset.f;
+    it[f]=(f==='qty'||f==='rate')?Number(e.target.value)||0:e.target.value; save(); render(); });
+  el.querySelectorAll('button[data-del]').forEach(b=>b.onclick=()=>confirmModal('Remove this sales order item?',()=>{p.items.splice(+b.dataset.del,1);save();render();}));
+}
+
+/* ---------------- Challans ---------------- */
+function tabChallans(p,el){
+  let h=`<div class="card"><div class="hd"><h3>Delivery Challans</h3>
+    <button class="btn sm p" id="chNew" style="margin-left:auto">+ Issue new challan</button>
+    <button class="btn sm" id="chAttach">Attach Zoho challan</button></div><div class="bd">`;
+  if(!p.challans.length) h+=`<div class="empty">No challans yet. Issue a challan from here, or attach challans already made in Zoho.</div>`;
+  else{ h+=`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Challan No.</th><th>Date</th><th>Source</th><th class="r">Items</th><th class="r">Addl. items</th><th class="r">Value</th><th></th></tr></thead><tbody>`;
+    p.challans.slice().sort((a,b)=>a.date<b.date?1:-1).forEach(c=>{
+      const nAdd=(c.items||[]).filter(ci=>Number(ci.extraQty)>0).length+(c.extraItems||[]).length;
+      h+=`<tr><td class="mono"><b>${esc(c.no)}</b></td><td>${dfmt(c.date)}</td><td><span class="chip ${c.source==='Issued here'?'teal':'grey'}">${esc(c.source)}</span></td>
+      <td class="r">${(c.items||[]).length||'—'}</td><td class="r">${nAdd||'—'}</td><td class="r money">${inr(challanValue(p,c))}</td>
+      <td style="white-space:nowrap"><button class="btn sm" data-vw="${c.id}">View</button>
+      ${c.source==='Issued here'?`<button class="btn sm" data-pr="${c.id}">Print</button>`:''}
+      <button class="btn sm" data-ed="${c.id}">Edit</button>
+      <button class="btn sm d" data-del="${c.id}">Delete</button></td></tr>`; });
+    h+=`</tbody></table></div>`; }
+  h+=`</div></div>`; el.innerHTML=h;
+  document.getElementById('chNew').onclick=()=>challanModal(p);
+  document.getElementById('chAttach').onclick=()=>attachChallanModal(p);
+  el.querySelectorAll('[data-vw]').forEach(b=>b.onclick=()=>viewChallanModal(p,p.challans.find(x=>x.id===b.dataset.vw)));
+  el.querySelectorAll('[data-pr]').forEach(b=>b.onclick=()=>{const c=p.challans.find(x=>x.id===b.dataset.pr);printChallan(p,c);});
+  el.querySelectorAll('[data-ed]').forEach(b=>b.onclick=()=>{
+    pwdModal('edit', ()=>{
+      const c=p.challans.find(x=>x.id===b.dataset.ed);
+      if(c.source==='Issued here') challanModal(p,c); else attachChallanModal(p,c);
+    });
+  });
+  el.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
+    pwdModal('delete', ()=>{
+      confirmModal('Delete this challan? Running bills already generated will not change.', ()=>{
+        p.challans=p.challans.filter(x=>x.id!==b.dataset.del); save(); render(); toast('Challan deleted');
+      });
+    });
+  });
+}
+
+function challanDocHTML(p,c){
+  /* Printed / viewed challan: quantities only — no rates, values or SO/additional bifurcation. */
+  let rows='', i=1, totalQty=0;
+  (c.items||[]).forEach(ci=>{ const it=p.items.find(x=>x.id===ci.itemId); if(!it)return;
+    const q=(Number(ci.qty)||0)+(Number(ci.extraQty)||0); totalQty+=q;
+    rows+=`<tr><td>${i++}</td><td>${esc(it.description)}</td><td>${esc(it.unit)}</td><td class="r">${q}</td></tr>`; });
+  (c.extraItems||[]).forEach(x=>{ const q=Number(x.qty)||0; totalQty+=q;
+    rows+=`<tr><td>${i++}</td><td>${esc(x.description)}</td><td>${esc(x.unit)}</td><td class="r">${q}</td></tr>`; });
+  return `${docHead()}<div class="dtitle">Delivery Challan</div>
+  <div class="meta"><div><b>Challan No:</b> ${esc(c.no)}<br><b>Date:</b> ${dfmt(c.date)}<br><b>Vehicle:</b> ${esc(c.vehicle||'—')}<br><b>Driver:</b> ${esc(c.driver||'—')}</div>
+  <div style="text-align:right"><b>Delivered to:</b><br>${esc(p.client)}<br>${esc(p.site||'')}<br><b>Project:</b> ${esc(p.name)}${p.poNumber?'<br><b>Against PO:</b> '+esc(p.poNumber):''}</div></div>
+  ${rows?`<table><thead><tr><th style="width:8%">S.No</th><th>Description of goods</th><th style="width:12%">Unit</th><th class="r" style="width:14%">Qty</th></tr></thead><tbody>${rows}</tbody>
+  <tfoot><tr><td colspan="3" class="r"><b>Total quantity — this challan</b></td><td class="r"><b>${totalQty}</b></td></tr></tfoot></table>`:''}
+  ${c.remarks?`<p style="margin-top:8px"><b>Remarks:</b> ${esc(c.remarks)}</p>`:''}
+  <p style="margin-top:8px;font-size:10.5px">Goods dispatched for the above project. This is a delivery challan, not an invoice. Please check material on receipt; any discrepancy to be reported within 48 hours.</p>
+  <div class="sig"><div>Received by (name, sign & date)</div><div>For ${esc(state.settings.company)}<br>Authorised Signatory</div></div>`;
+}
+
+function viewChallanModal(p,c){
+  const bg=modal('Challan '+esc(c.no),`
+    <div class="doc-preview"><div class="doc">${challanDocHTML(p,c)}</div></div>
+    <p class="note" style="margin-top:10px">Internal summary (not printed): <b>Challan value:</b> <span class="money">${inr(challanValue(p,c))}</span>${(c.items||[]).some(ci=>Number(ci.extraQty)>0)||(c.extraItems||[]).length?` · <b>Additional qty (beyond SO):</b> ${(c.items||[]).reduce((s2,ci)=>s2+(Number(ci.extraQty)||0),0)+(c.extraItems||[]).reduce((s2,x)=>s2+(Number(x.qty)||0),0)}`:''}</p>`,
+    `${c.attachment?'<button class="btn" id="mAtt">View attachment</button>':''}
+     <button class="btn" id="mPr">Print</button>
+     <button class="btn p" id="mOk">Close</button>`);
+  const at=bg.querySelector('#mAtt'); if(at)at.onclick=()=>downloadAtt(c.attachment);
+  bg.querySelector('#mPr').onclick=()=>{bg.remove();printChallan(p,c);};
+  bg.querySelector('#mOk').onclick=()=>bg.remove();
+}
+
+function modal(title, bodyHTML, footHTML){
+  const bg=document.createElement('div'); bg.className='modal-bg';
+  bg.innerHTML=`<div class="modal"><div class="hd"><h3>${title}</h3><button id="mx">×</button></div><div class="bd">${bodyHTML}</div><div class="ft">${footHTML||''}</div></div>`;
+  document.body.appendChild(bg);
+  bg.querySelector('#mx').onclick=()=>bg.remove();
+  bg.onclick=e=>{if(e.target===bg)bg.remove();};
+  return bg;
+}
+
+function challanModal(p, editing){
+  if(!p.items.length && !editing){ toast('Add sales order items first — challan items are picked from the sales order.'); return; }
+  const no = editing ? editing.no : state.settings.challanPrefix + String(state.settings.challanNext).padStart(3,'0');
+  const prev = {}; if(editing) (editing.items||[]).forEach(ci=>prev[ci.itemId]={qty:Number(ci.qty)||0, extra:Number(ci.extraQty)||0});
+  let rows=p.items.map(it=>{
+    const issuedOthers = dispatchedQty(p,it.id) - (prev[it.id]?prev[it.id].qty:0); // issued on other challans
+    const bal = it.qty - issuedOthers;
+    const nowQ=prev[it.id]?prev[it.id].qty:0;
+    const full=(issuedOthers+nowQ)>=it.qty;
+    return `<tr><td>${esc(it.description)}</td><td>${esc(it.unit)}</td>
+    <td class="r money">${it.qty}</td><td class="r money">${issuedOthers}</td><td class="r money" data-bal-show="${it.id}">${bal}</td>
+    <td class="r"><input type="number" min="0" data-ch="${it.id}" data-bal="${bal}" data-so="${it.qty}" data-oth="${issuedOthers}" value="${nowQ}" style="width:84px;text-align:right"></td>
+    <td class="r"><input type="number" min="0" data-ex="${it.id}" value="${prev[it.id]?prev[it.id].extra:0}" ${full?'':'disabled title="Enabled once the full sales order qty has been dispatched"'} style="width:84px;text-align:right${full?'':';background:#EFF3F4'}"></td></tr>`;}).join('');
+  const bg=modal((editing?'Edit challan — ':'Issue new challan — ')+esc(no),`
+    <div class="frow">
+      <label class="f"><span class="t">Challan date</span><input type="date" id="ch_date" value="${editing?editing.date:today()}"></label>
+      <label class="f"><span class="t">Vehicle no.</span><input type="text" id="ch_veh" value="${editing?esc(editing.vehicle||''):''}"></label>
+      <label class="f"><span class="t">Driver / contact</span><input type="text" id="ch_drv" value="${editing?esc(editing.driver||''):''}"></label>
+    </div>
+    <label class="f"><span class="t">Remarks</span><input type="text" id="ch_rem" value="${editing?esc(editing.remarks||''):''}" placeholder="e.g. Filtration equipment lot 2"></label>
+    <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Item</th><th>Unit</th><th class="r">SO Qty</th><th class="r">Already issued</th><th class="r">Balance</th><th class="r">Dispatch now</th><th class="r">Additional qty<br><span style="font-weight:400;text-transform:none;letter-spacing:0">(beyond BOQ)</span></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="note" style="margin:8px 0 4px">"Dispatch now" cannot exceed the balance quantity. "Additional qty" unlocks only once the full sales order quantity of that item has been dispatched — it is tracked and billed separately.</p>
+    <h4 style="font-size:13px;margin:14px 0 6px">Items not in the sales order</h4>
+    <div id="chCustom"></div>
+    <button class="btn sm" id="chAddCustom" type="button">+ Add item not in sales order</button>`,
+    `<button class="btn" id="mCancel">Cancel</button><button class="btn p" id="mSave">${editing?'Save changes':'Save & print challan'}</button>`);
+  // balance validation + unlock additional qty only when SO qty fully dispatched
+  function refreshExtraLock(inp){
+    const so=Number(inp.dataset.so), oth=Number(inp.dataset.oth), v=Number(inp.value)||0;
+    const ex=bg.querySelector(`input[data-ex="${inp.dataset.ch}"]`);
+    const full=(oth+v)>=so;
+    ex.disabled=!full; ex.style.background=full?'':'#EFF3F4';
+    ex.title=full?'':'Enabled once the full sales order qty has been dispatched';
+    if(!full && Number(ex.value)>0){ ex.value=0; toast('Additional qty is allowed only after the full sales order qty ('+so+') has been dispatched for that item.'); }
+  }
+  bg.querySelectorAll('input[data-ch]').forEach(inp=>{
+    inp.oninput=()=>{
+      const bal=Number(inp.dataset.bal); let v=Number(inp.value)||0;
+      if(v>bal){ inp.value=bal; toast('Dispatch now cannot exceed balance qty ('+bal+'). Use the Additional qty column for excess dispatch.'); }
+      if(v<0) inp.value=0;
+      refreshExtraLock(inp);
+    };
+  });
+  bg.querySelectorAll('input[data-ex]').forEach(inp=>inp.oninput=()=>{ if(Number(inp.value)<0) inp.value=0; });
+  // custom items (not in sales order)
+  const customBox=bg.querySelector('#chCustom');
+  function addCustomRow(x){
+    const r=document.createElement('div'); r.className='frow'; r.style.alignItems='end'; r.dataset.custom='1';
+    r.innerHTML=`<label class="f"><span class="t">Description</span><input type="text" class="cx-d" value="${x?esc(x.description):''}"></label>
+    <label class="f"><span class="t">Unit</span><input type="text" class="cx-u" value="${x?esc(x.unit||'Nos'):'Nos'}"></label>
+    <label class="f"><span class="t">Qty</span><input type="number" min="0" class="cx-q" value="${x?x.qty:1}"></label>
+    <label class="f"><span class="t">Rate (₹, for billing)</span><input type="number" min="0" class="cx-r" value="${x?x.rate||0:0}"></label>
+    <label class="f"><span class="t">&nbsp;</span><button class="btn sm d" type="button">Remove</button></label>`;
+    r.querySelector('button').onclick=()=>r.remove();
+    customBox.appendChild(r);
+  }
+  if(editing) (editing.extraItems||[]).forEach(addCustomRow);
+  bg.querySelector('#chAddCustom').onclick=()=>addCustomRow();
+  bg.querySelector('#mCancel').onclick=()=>bg.remove();
+  bg.querySelector('#mSave').onclick=()=>{
+    const items=[];
+    bg.querySelectorAll('input[data-ch]').forEach(i=>{
+      const q=Number(i.value)||0;
+      let ex=Number(bg.querySelector(`input[data-ex="${i.dataset.ch}"]`).value)||0;
+      if(q>Number(i.dataset.bal)){ toast('Dispatch now exceeds balance for an item'); throw new Error('bal'); }
+      if(ex>0 && (Number(i.dataset.oth)+q)<Number(i.dataset.so)){ ex=0; } // additional only after full SO qty dispatched
+      if(q>0||ex>0) items.push({itemId:i.dataset.ch,qty:q,extraQty:ex});
+    });
+    const extraItems=[];
+    customBox.querySelectorAll('[data-custom]').forEach(r=>{
+      const d=r.querySelector('.cx-d').value.trim(), q=Number(r.querySelector('.cx-q').value)||0;
+      if(d&&q>0) extraItems.push({description:d,unit:r.querySelector('.cx-u').value.trim()||'Nos',qty:q,rate:Number(r.querySelector('.cx-r').value)||0});
+    });
+    if(!items.length && !extraItems.length){toast('Enter dispatch quantity for at least one item');return;}
+    if(editing){
+      editing.date=bg.querySelector('#ch_date').value; editing.vehicle=bg.querySelector('#ch_veh').value;
+      editing.driver=bg.querySelector('#ch_drv').value; editing.remarks=bg.querySelector('#ch_rem').value;
+      editing.items=items; editing.extraItems=extraItems;
+      save(); bg.remove(); render(); toast('Challan updated');
+    } else {
+      const c={id:uid(),no,date:bg.querySelector('#ch_date').value,vehicle:bg.querySelector('#ch_veh').value,driver:bg.querySelector('#ch_drv').value,remarks:bg.querySelector('#ch_rem').value,items,extraItems,source:'Issued here',attachment:null};
+      p.challans.push(c); state.settings.challanNext++; save(); bg.remove(); render(); printChallan(p,c);
+    }
+  };
+}
+
+function attachChallanModal(p, editing){
+  const prev={}; if(editing)(editing.items||[]).forEach(ci=>prev[ci.itemId]=Number(ci.qty)||0);
+  const bg=modal(editing?'Edit attached challan':'Attach Zoho challan',`
+    <div class="frow">
+      <label class="f"><span class="t">Challan number *</span><input type="text" id="zc_no" value="${editing?esc(editing.no):''}" placeholder="As per Zoho"></label>
+      <label class="f"><span class="t">Date</span><input type="date" id="zc_date" value="${editing?editing.date:today()}"></label>
+      <label class="f"><span class="t">Challan value (₹, basic)</span><input type="number" id="zc_val" value="${editing&&editing.manualValue?editing.manualValue:''}" placeholder="Material value on this challan"></label>
+    </div>
+    <p class="note" style="margin-bottom:8px">Attach the challan copy (PDF or image). If you enter the value above, it is added to "material sent". Alternatively, link quantities to sales order items below so running bills can pick them up automatically.</p>
+    <input type="file" id="zc_file" accept="application/pdf,image/*">
+    ${editing&&editing.attachment?`<p class="note" style="margin-top:6px">Current attachment: ${esc(editing.attachment.name)} (choose a new file to replace it)</p>`:''}
+    <div class="tbl-wrap" style="margin-top:12px"><table class="tbl"><thead><tr><th>Sales order item</th><th class="r">Qty on this challan</th></tr></thead><tbody>
+    ${p.items.map(it=>`<tr><td>${esc(it.description)} (${esc(it.unit)})</td><td class="r"><input type="number" min="0" data-zc="${it.id}" value="${prev[it.id]||0}" style="width:90px;text-align:right"></td></tr>`).join('')||'<tr><td colspan="2" class="note">No sales order items — use challan value field above.</td></tr>'}
+    </tbody></table></div>`,
+    `<button class="btn" id="mCancel">Cancel</button><button class="btn p" id="mSave">${editing?'Save changes':'Attach challan'}</button>`);
+  bg.querySelector('#mCancel').onclick=()=>bg.remove();
+  bg.querySelector('#mSave').onclick=async()=>{
+    const no=bg.querySelector('#zc_no').value.trim(); if(!no){toast('Challan number is required');return;}
+    const items=[]; bg.querySelectorAll('input[data-zc]').forEach(i=>{const q=Number(i.value)||0;if(q>0)items.push({itemId:i.dataset.zc,qty:q});});
+    let att=editing?editing.attachment:null; const f=bg.querySelector('#zc_file').files[0]; if(f) att=await readFile(f);
+    const mv=Number(bg.querySelector('#zc_val').value)||0;
+    if(editing){
+      editing.no=no; editing.date=bg.querySelector('#zc_date').value; editing.items=items;
+      editing.manualValue=items.length?0:mv; editing.attachment=att;
+      save(); bg.remove(); render(); toast('Challan updated');
+    } else {
+      p.challans.push({id:uid(),no,date:bg.querySelector('#zc_date').value,items,manualValue:items.length?0:mv,source:'Zoho',attachment:att});
+      save(); bg.remove(); render(); toast('Challan attached');
+    }
+  };
+}
+/* ---------------- Running bills ---------------- */
+function tabBills(p,el){
+  let h=`<div class="card"><div class="hd"><h3>Running Bills (RA Bills)</h3>
+    <button class="btn sm p" id="raNew" style="margin-left:auto">+ Generate running bill</button></div><div class="bd">
+    <p class="note" style="margin-bottom:12px">Running bills are prepared automatically from the challans issued up to the bill date: cumulative dispatched quantity × sales order rate, plus attached Zoho challan values, less amounts already billed, discounts adjusted, GST as per terms.</p>`;
+  if(!p.bills.length) h+=`<div class="empty">No running bills yet.</div>`;
+  else{ h+=`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Bill No.</th><th>Date</th><th class="r">Gross to date</th><th class="r">of which extras (beyond SO)</th><th class="r">Less prior billed</th><th class="r">This bill (net)</th><th></th></tr></thead><tbody>`;
+    p.bills.forEach(b=>{ const xb=(b.lines||[]).filter(l=>l.extra).reduce((s,l)=>s+l.amount,0);
+      h+=`<tr><td class="mono"><b>${esc(b.no)}</b></td><td>${dfmt(b.date)}</td>
+      <td class="r money">${inr(b.grossToDate)}</td><td class="r money">${xb?inr(xb):'—'}</td><td class="r money">${inr(b.priorBilled)}</td><td class="r money"><b>${inr(b.netPayable)}</b></td>
+      <td><button class="btn sm" data-pr="${b.id}">Print</button> <button class="btn sm d" data-del="${b.id}">×</button></td></tr>`; });
+    h+=`</tbody><tfoot><tr><td colspan="5" class="r">Total billed</td><td class="r money">${inr(billedTotal(p))}</td><td></td></tr></tfoot></table></div>`; }
+  h+=`</div></div>`; el.innerHTML=h;
+  document.getElementById('raNew').onclick=()=>generateBill(p);
+  el.querySelectorAll('[data-pr]').forEach(b=>b.onclick=()=>printBill(p,p.bills.find(x=>x.id===b.dataset.pr)));
+  el.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>confirmModal('Delete this running bill?',()=>{p.bills=p.bills.filter(x=>x.id!==b.dataset.del);save();render();}));
+}
+
+function generateBill(p){
+  const bg=modal('Generate running bill',`
+    <label class="f"><span class="t">Bill up to date (challans on or before this date are included)</span><input type="date" id="rb_date" value="${today()}"></label>
+    <label class="f"><span class="t">Apply special discounts in this bill?</span><select id="rb_disc"><option value="yes">Yes — adjust discounts not yet billed</option><option value="no">No — bill without discount adjustment</option></select></label>`,
+    `<button class="btn" id="mCancel">Cancel</button><button class="btn p" id="mGo">Generate</button>`);
+  bg.querySelector('#mCancel').onclick=()=>bg.remove();
+  bg.querySelector('#mGo').onclick=()=>{
+    const upto=bg.querySelector('#rb_date').value;
+    const lines=[];
+    p.items.forEach(it=>{ const cq=dispatchedQty(p,it.id,upto); if(cq>0) lines.push({description:it.description,unit:it.unit,orderQty:it.qty,cumQty:cq,rate:it.rate,amount:cq*it.rate}); });
+    let zoho=0; p.challans.forEach(c=>{ if(c.date<=upto && c.manualValue) zoho+=Number(c.manualValue)||0; });
+    if(zoho>0) lines.push({description:'Material supplied vide attached Zoho challans (value basis)',unit:'LS',orderQty:'',cumQty:'',rate:'',amount:zoho});
+    // extras: qty beyond BOQ on sales order items + items not in the sales order
+    p.items.forEach(it=>{ const eq=extraQtyOf(p,it.id,upto); if(eq>0) lines.push({extra:true,description:it.description,unit:it.unit,orderQty:'—',cumQty:eq,rate:it.rate,amount:eq*it.rate}); });
+    customDispatched(p,upto).forEach(x=>{ if(x.qty>0) lines.push({extra:true,description:x.description,unit:x.unit,orderQty:'—',cumQty:x.qty,rate:x.rate,amount:x.qty*(x.rate||0)}); });
+    if(!lines.length){ toast('No challans found up to this date — nothing to bill.'); return; }
+    const grossBasic = lines.reduce((s,l)=>s+l.amount,0);
+    const priorDisc = p.bills.reduce((s,b)=>s+(b.discountApplied||0),0);
+    const discCum = bg.querySelector('#rb_disc').value==='yes' ? discountTotal(p) : priorDisc;
+    const discNow = Math.max(discCum-priorDisc,0);
+    const gst = p.terms.gst==='extra' ? (grossBasic-discCum)*state.settings.gstRate/100 : 0;
+    const grossToDate = grossBasic - discCum + gst;
+    const priorBilled = p.bills.reduce((s,b)=>s+(Number(b.netPayable)||0),0);
+    const netPayable = grossToDate - priorBilled;
+    if(netPayable<=0){ toast('Everything dispatched up to this date is already billed.'); return; }
+    const no = state.settings.billPrefix + (p.bills.length+1) + ' / ' + (p.poNumber||p.name);
+    const b={id:uid(),no,date:upto,lines,grossBasic,discountApplied:discNow,discountCum:discCum,gst,grossToDate,priorBilled,netPayable};
+    p.bills.push(b); save(); bg.remove(); render(); printBill(p,b);
+  };
+}
+
+/* ---------------- Payments ---------------- */
+function tabPayments(p,el){
+  let h=`<div class="card"><div class="hd"><h3>Payments received</h3><button class="btn sm p" id="payAdd" style="margin-left:auto">+ Record payment</button></div><div class="bd">`;
+  if(!p.payments.length) h+=`<div class="empty">No payments recorded yet.</div>`;
+  else{ h+=`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Date</th><th>Mode</th><th>Reference</th><th class="r">Amount</th><th></th></tr></thead><tbody>`;
+    p.payments.slice().sort((a,b)=>a.date<b.date?1:-1).forEach(x=>{h+=`<tr><td>${dfmt(x.date)}</td><td>${esc(x.mode)}</td><td>${esc(x.ref||'—')}</td><td class="r money" style="color:var(--ok)">${inr(x.amount)}</td><td style="white-space:nowrap">${x.attachment?`<button class="btn sm" data-prf="${x.id}">Proof</button> `:''}<button class="btn sm d" data-del="${x.id}">×</button></td></tr>`;});
+    h+=`</tbody><tfoot><tr><td colspan="3" class="r">Total received</td><td class="r money" style="color:var(--ok)">${inr(paidTotal(p))}</td><td></td></tr></tfoot></table></div>`; }
+  h+=`</div></div>`; el.innerHTML=h;
+  document.getElementById('payAdd').onclick=()=>{
+    const bg=modal('Record payment',`
+      <div class="frow">
+        <label class="f"><span class="t">Date</span><input type="date" id="pm_d" value="${today()}"></label>
+        <label class="f"><span class="t">Amount (₹) *</span><input type="number" id="pm_a"></label>
+        <label class="f"><span class="t">Mode</span><select id="pm_m"><option>Bank transfer / NEFT / RTGS</option><option>Cheque</option><option>UPI</option><option>Cash</option><option>Adjustment</option></select></label>
+      </div><label class="f"><span class="t">Reference (UTR / cheque no. / note)</span><input type="text" id="pm_r"></label>
+      <label class="f"><span class="t">Proof of payment (optional — bank advice / cheque copy / screenshot)</span><input type="file" id="pm_f" accept="application/pdf,image/*"></label>`,
+      `<button class="btn" id="mCancel">Cancel</button><button class="btn p" id="mSave">Save payment</button>`);
+    bg.querySelector('#mCancel').onclick=()=>bg.remove();
+    bg.querySelector('#mSave').onclick=async()=>{ const a=Number(bg.querySelector('#pm_a').value)||0; if(a<=0){toast('Enter amount');return;}
+      let att=null; const f=bg.querySelector('#pm_f').files[0]; if(f) att=await readFile(f);
+      p.payments.push({id:uid(),date:bg.querySelector('#pm_d').value,amount:a,mode:bg.querySelector('#pm_m').value,ref:bg.querySelector('#pm_r').value,attachment:att});
+      save(); bg.remove(); render(); };
+  };
+  el.querySelectorAll('[data-prf]').forEach(b=>b.onclick=()=>{const x=p.payments.find(z=>z.id===b.dataset.prf);downloadAtt(x.attachment);});
+  el.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>confirmModal('Delete this payment entry?',()=>{p.payments=p.payments.filter(x=>x.id!==b.dataset.del);save();render();}));
+}
+
+/* ---------------- Site Accounts ---------------- */
+function siteAccountFigures(p){
+  const basicDispatched = dispatchedValue(p);
+  const disc = discountTotal(p);
+  const taxable = Math.max(basicDispatched - disc, 0);
+  const gst = p.terms.gst==='extra' ? taxable*(Number(state.settings.gstRate)||18)/100 : 0;
+  const payableToDate = taxable + gst;
+  const billed = billedTotal(p);
+  const unbilled = Math.max(payableToDate - billed, 0);
+  const received = paidTotal(p);
+  const balance = payableToDate - received;
+  return {basicDispatched,disc,gst,payableToDate,billed,unbilled,received,balance};
+}
+function siteAccountDocHTML(p){
+  const f=siteAccountFigures(p);
+  const n=x=>Number(x).toLocaleString('en-IN',{minimumFractionDigits:2});
+  let billRows='';
+  p.bills.forEach(b=>{ billRows+=`<tr><td>${esc(b.no)}</td><td>${dfmt(b.date)}</td><td class="r">${n(b.grossToDate)}</td><td class="r">− ${n(b.priorBilled)}</td><td class="r">${n(b.netPayable)}</td></tr>`; });
+  return `${docHead()}<div class="dtitle">Site Account Statement</div>
+  <div class="meta"><div><b>Statement date:</b> ${dfmt(today())}<br><b>Project:</b> ${esc(p.name)}${p.poNumber?'<br><b>PO ref:</b> '+esc(p.poNumber)+' dt '+dfmt(p.poDate):''}</div>
+  <div style="text-align:right"><b>Client:</b> ${esc(p.client)}<br>${esc(p.site||'')}</div></div>
+  <p style="margin-top:10px"><b>A. Running bills issued</b></p>
+  ${p.bills.length?`<table><thead><tr><th>Bill No.</th><th>Date</th><th class="r">Gross to date (₹)</th><th class="r">Less prior billed (₹)</th><th class="r">Net billed (₹)</th></tr></thead>
+  <tbody>${billRows}</tbody>
+  <tfoot><tr><td colspan="4" class="r"><b>Total value of running bills issued</b></td><td class="r"><b>${n(f.billed)}</b></td></tr></tfoot></table>`
+  :'<p style="font-size:11.5px">No running bills issued to date.</p>'}
+  <p style="margin-top:12px"><b>B. Account summary</b></p>
+  <table><tbody>
+    <tr><td>Material sent to site per challans (basic value)</td><td class="r" style="width:22%">${n(f.basicDispatched)}</td></tr>
+    <tr><td>Less: additional / special discount given</td><td class="r">− ${n(f.disc)}</td></tr>
+    <tr><td>${p.terms.gst==='extra'?`Add: GST @ ${state.settings.gstRate}% (extra as per terms)`:'GST included in rates (as per terms)'}</td><td class="r">${f.gst?n(f.gst):'—'}</td></tr>
+    <tr><td><b>Billable to date (challan basis)</b></td><td class="r"><b>${n(f.payableToDate)}</b></td></tr>
+    <tr><td>Total value of running bills issued</td><td class="r">${n(f.billed)}</td></tr>
+    <tr><td><b>Unbilled amount as per challans issued</b></td><td class="r"><b>${n(f.unbilled)}</b></td></tr>
+    <tr><td><b>Total payment received till date</b></td><td class="r"><b>${n(f.received)}</b></td></tr>
+    <tr><td><b>BALANCE PAYMENT</b></td><td class="r"><b>${n(f.balance)}</b></td></tr>
+  </tbody></table>
+  <p style="margin-top:8px;font-size:10.5px">Unbilled = value of material already dispatched vide challans, not yet covered by a running bill. Balance = total billable on challan basis to date, less payments received. E. & O. E.</p>
+  <div class="sig"><div>Client</div><div>For ${esc(state.settings.company)}<br>Authorised Signatory</div></div>`;
+}
+function tabAccounts(p,el){
+  const {basicDispatched,disc,gst,payableToDate,billed,unbilled,received,balance}=siteAccountFigures(p);
+  let billRows='';
+  p.bills.forEach(b=>{ billRows+=`<tr><td class="mono"><b>${esc(b.no)}</b></td><td>${dfmt(b.date)}</td><td class="r money">${inr(b.grossToDate)}</td><td class="r money">− ${inr(b.priorBilled)}</td><td class="r money"><b>${inr(b.netPayable)}</b></td></tr>`; });
+  el.innerHTML=`<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(330px,1fr))">
+  <div style="grid-column:1/-1;display:flex;justify-content:flex-end"><button class="btn p" id="accPrint">Print site account statement</button></div>
+  <div class="card"><div class="hd"><h3>Running bills issued</h3></div><div class="bd">
+    ${p.bills.length?`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Bill No.</th><th>Date</th><th class="r">Gross to date</th><th class="r">Less prior</th><th class="r">Net billed</th></tr></thead>
+    <tbody>${billRows}</tbody>
+    <tfoot><tr><td colspan="4" class="r">Total value of running bills issued</td><td class="r money">${inr(billed)}</td></tr></tfoot></table></div>`
+    :'<div class="empty">No running bills issued yet.</div>'}
+  </div></div>
+  <div class="card"><div class="hd"><h3>Site account summary</h3></div><div class="bd"><div class="tbl-wrap"><table class="tbl">
+    <tr><td>Material sent to site per challans (basic value)</td><td class="r money">${inr(basicDispatched)}</td></tr>
+    <tr><td>Less: additional / special discount given</td><td class="r money" style="color:var(--danger)">− ${inr(disc)}</td></tr>
+    <tr><td>${p.terms.gst==='extra'?`Add: GST @ ${state.settings.gstRate}% (extra as per terms)`:'GST included in rates (as per terms)'}</td><td class="r money">${gst?inr(gst):'—'}</td></tr>
+    <tr><td><b>Billable to date (challan basis)</b></td><td class="r money"><b>${inr(payableToDate)}</b></td></tr>
+    <tr><td>Total value of running bills issued</td><td class="r money">${inr(billed)}</td></tr>
+    <tr><td style="color:var(--warn)"><b>Unbilled amount as per challans issued</b></td><td class="r money" style="color:var(--warn)"><b>${inr(unbilled)}</b></td></tr>
+    <tr><td style="color:var(--ok)"><b>Total payment received till today</b></td><td class="r money" style="color:var(--ok)"><b>${inr(received)}</b></td></tr>
+    <tr><td style="color:${balance>0?'var(--danger)':'var(--ok)'}"><b>Balance payment (billable to date − received)</b></td><td class="r money" style="color:${balance>0?'var(--danger)':'var(--ok)'}"><b>${inr(balance)}</b></td></tr>
+  </table></div>
+  <p class="note" style="margin-top:10px">Unbilled = value of material already sent (challans) that is not yet covered by a running bill. Balance = everything billable on challan basis to date, less payments received.</p>
+  </div></div></div>`;
+  document.getElementById('accPrint').onclick=()=>doPrint(siteAccountDocHTML(p),'Site-Account-'+p.name);
+}
+
+/* ---------------- Discounts & Amendments ---------------- */
+function tabAdjust(p,el){
+  el.innerHTML=`<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr))">
+  <div class="card"><div class="hd"><h3>Special discounts</h3><button class="btn sm p" id="dAdd" style="margin-left:auto">+ Give discount</button></div><div class="bd" id="dList"></div></div>
+  <div class="card"><div class="hd"><h3>Amendments</h3><button class="btn sm p" id="aAdd" style="margin-left:auto">+ Add amendment</button></div><div class="bd" id="aList"></div></div></div>`;
+  const dl=document.getElementById('dList');
+  if(!p.discounts.length) dl.innerHTML='<div class="empty">No special discounts given.</div>';
+  else p.discounts.forEach(d=>{const r=document.createElement('div');r.className='att';
+    r.innerHTML=`<span class="nm">${esc(d.reason||'Special discount')}</span><span class="mt">${dfmt(d.date)}</span><span class="money" style="color:var(--danger)">− ${inr(d.amount)}</span>`;
+    const x=document.createElement('button');x.className='btn sm d';x.textContent='×';x.onclick=()=>confirmModal('Remove this discount?',()=>{p.discounts=p.discounts.filter(z=>z.id!==d.id);save();render();});r.appendChild(x);dl.appendChild(r);});
+  document.getElementById('dAdd').onclick=()=>{
+    const bg=modal('Give special discount',`
+      <div class="frow"><label class="f"><span class="t">Date</span><input type="date" id="sd_d" value="${today()}"></label>
+      <label class="f"><span class="t">Discount amount (₹, on basic value) *</span><input type="number" id="sd_a"></label></div>
+      <label class="f"><span class="t">Reason / approved by</span><input type="text" id="sd_r" placeholder="e.g. Goodwill discount approved by Adit"></label>`,
+      `<button class="btn" id="mCancel">Cancel</button><button class="btn p" id="mSave">Apply discount</button>`);
+    bg.querySelector('#mCancel').onclick=()=>bg.remove();
+    bg.querySelector('#mSave').onclick=()=>{const a=Number(bg.querySelector('#sd_a').value)||0;if(a<=0){toast('Enter amount');return;}
+      p.discounts.push({id:uid(),date:bg.querySelector('#sd_d').value,amount:a,reason:bg.querySelector('#sd_r').value});save();bg.remove();render();};
+  };
+  const al=document.getElementById('aList');
+  if(!p.amendments.length) al.innerHTML='<div class="empty">No amendments. Use this when the client changes scope — attach the approved amendment copy.</div>';
+  else p.amendments.forEach(a=>{const r=document.createElement('div');r.className='att';
+    r.innerHTML=`<span class="nm">${esc(a.desc)}</span><span class="mt">${dfmt(a.date)}</span><span class="money" style="color:${a.valueChange<0?'var(--danger)':'var(--ok)'}">${a.valueChange<0?'−':'+'} ${inr(Math.abs(a.valueChange))}</span>`;
+    if(a.attachment){const v=document.createElement('button');v.className='btn sm';v.textContent='View';v.onclick=()=>downloadAtt(a.attachment);r.appendChild(v);}
+    const x=document.createElement('button');x.className='btn sm d';x.textContent='×';x.onclick=()=>confirmModal('Remove this amendment?',()=>{p.amendments=p.amendments.filter(z=>z.id!==a.id);save();render();});r.appendChild(x);al.appendChild(r);});
+  document.getElementById('aAdd').onclick=()=>{
+    const bg=modal('Add amendment',`
+      <div class="frow"><label class="f"><span class="t">Date</span><input type="date" id="am_d" value="${today()}"></label>
+      <label class="f"><span class="t">Value change (₹, use minus for reduction) *</span><input type="number" id="am_v"></label></div>
+      <label class="f"><span class="t">Description *</span><input type="text" id="am_t" placeholder="e.g. Additional heat pump added to scope"></label>
+      <label class="f"><span class="t">Approval copy (PO amendment / email / WhatsApp)</span><input type="file" id="am_f" accept="application/pdf,image/*"></label>`,
+      `<button class="btn" id="mCancel">Cancel</button><button class="btn p" id="mSave">Save amendment</button>`);
+    bg.querySelector('#mCancel').onclick=()=>bg.remove();
+    bg.querySelector('#mSave').onclick=async()=>{
+      const t=bg.querySelector('#am_t').value.trim(), v=Number(bg.querySelector('#am_v').value);
+      if(!t||isNaN(v)){toast('Description and value change are required');return;}
+      let att=null; const f=bg.querySelector('#am_f').files[0]; if(f)att=await readFile(f);
+      p.amendments.push({id:uid(),date:bg.querySelector('#am_d').value,desc:t,valueChange:v,attachment:att});save();bg.remove();render();};
+  };
+}
+
+/* ---------------- Documents ---------------- */
+function tabDocs(p,el){
+  el.innerHTML=`<div class="card"><div class="hd"><h3>Project documents</h3></div><div class="bd">
+    <h4 style="font-size:13px;margin-bottom:8px">Order copy (PO / BOQ / approved quotation)</h4><div id="dOrder"></div>
+    <div style="margin:6px 0 18px"><button class="btn sm" id="reAI">Re-run AI reading → rebuild sales order</button> <span id="reAIst"></span></div>
+    <h4 style="font-size:13px;margin-bottom:8px">Approval proof (${esc(p.approval.mode)})</h4><div id="dAppr"></div>
+    <h4 style="font-size:13px;margin:18px 0 8px">Challan copies</h4><div id="dCh"></div>
+    <h4 style="font-size:13px;margin:18px 0 8px">Amendment approvals</h4><div id="dAm"></div>
+  </div></div>`;
+  const dO=document.getElementById('dOrder');
+  if(p.orderAttachment) dO.appendChild(attRow(p.orderAttachment,()=>{p.orderAttachment=null;save();render();}));
+  else{ const fi=document.createElement('input');fi.type='file';fi.accept='application/pdf,image/*';
+    fi.onchange=async e=>{if(!e.target.files[0])return;p.orderAttachment=await readFile(e.target.files[0]);save();render();};dO.appendChild(fi); }
+  document.getElementById('reAI').onclick=async()=>{
+    if(!p.orderAttachment){toast('Attach the order copy first');return;}
+    const st=document.getElementById('reAIst'); st.innerHTML='<span class="spin"></span>Reading…';
+    try{ const j=await extractOrder(p.orderAttachment);
+      st.textContent='';
+      confirmModal('Replace current sales order items with '+(j.items||[]).length+' item(s) read from the document?', ()=>{
+        p.items=(j.items||[]).map(it=>({id:uid(),description:it.description,unit:it.unit||'Nos',qty:Number(it.qty)||0,rate:Number(it.rate)||0}));
+        p.aiGenerated=true; save(); render(); toast('Sales order rebuilt'); });
+    }catch(err){ st.innerHTML='<span class="chip red">Failed</span> '+esc(err.message); }
+  };
+  const dA=document.getElementById('dAppr');
+  if(p.approval.mode==='Quote – Verbal approval') dA.innerHTML=`<p class="note">${esc(p.approval.basis||'Verbal approval — no attachment.')}</p>`;
+  else{ (p.approval.attachments||[]).forEach((a,i)=>dA.appendChild(attRow(a,()=>{p.approval.attachments.splice(i,1);save();render();})));
+    const fi=document.createElement('input');fi.type='file';fi.accept='application/pdf,image/*';
+    fi.onchange=async e=>{if(!e.target.files[0])return;p.approval.attachments=p.approval.attachments||[];p.approval.attachments.push(await readFile(e.target.files[0]));save();render();};dA.appendChild(fi); }
+  const dC=document.getElementById('dCh'); let any=false;
+  p.challans.forEach(c=>{if(c.attachment){any=true;const r=attRow(c.attachment);r.querySelector('.nm').textContent='📎 '+c.no+' — '+c.attachment.name;dC.appendChild(r);}});
+  if(!any) dC.innerHTML='<p class="note">No challan copies attached yet.</p>';
+  const dM=document.getElementById('dAm'); any=false;
+  p.amendments.forEach(a=>{if(a.attachment){any=true;const r=attRow(a.attachment);r.querySelector('.nm').textContent='📎 '+a.desc;dM.appendChild(r);}});
+  if(!any) dM.innerHTML='<p class="note">No amendment approvals attached.</p>';
+}
+/* ---------------- Printing ---------------- */
+function docHead(){
+  const s=state.settings;
+  return `<div class="dhead"><div>
+    <img src="${WATCON_LOGO}" alt="${esc(s.company)}" style="height:46px;display:block;margin-bottom:6px">
+    <div class="co">${esc(s.address)}${s.phone?'<br>Ph: '+esc(s.phone):''}${s.email?' · Email: '+esc(s.email):''}${s.gstin?'<br>GSTIN: '+esc(s.gstin):''}</div></div>
+  <div class="co" style="text-align:right"><b>${esc(s.company)}</b><br>Pools · Water Bodies · Tiles<br>Fireplaces · Sauna · Steam · Spa</div></div>`;
+}
+function doPrint(html, title){
+  document.getElementById('printArea').innerHTML=`<div class="doc">${html}</div>`;
+  const bg=modal(title||'Print preview',`
+    <div class="doc-preview"><div class="doc">${html}</div></div>
+    <p class="note" style="margin-top:10px">If nothing happens on Print (inside the Claude preview), use <b>Download</b> — the file opens in your browser and prints automatically. On your Netlify deployment, Print works directly.</p>`,
+    `<button class="btn" id="dlDoc">Download (HTML)</button><button class="btn p" id="prDoc">Print</button><button class="btn" id="mOk">Close</button>`);
+  bg.querySelector('#mOk').onclick=()=>bg.remove();
+  bg.querySelector('#prDoc').onclick=()=>{ try{ window.print(); }catch(e){ toast('Printing is blocked here — use Download instead.'); } };
+  bg.querySelector('#dlDoc').onclick=()=>{
+    const docCss=`body{font-family:Arial,Helvetica,sans-serif;margin:24px}
+.doc{max-width:190mm;margin:0 auto;font-size:12px;color:#000}
+.doc .dhead{display:flex;justify-content:space-between;border-bottom:2.5px solid #000;padding-bottom:10px}
+.doc .dhead h1{font-size:20px;letter-spacing:.5px;margin:0}
+.doc .dhead .co{font-size:11px;line-height:1.45}
+.doc .dtitle{text-align:center;font-size:14px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;margin:12px 0;border:1.5px solid #000;padding:5px}
+.doc table{width:100%;border-collapse:collapse;margin-top:8px}
+.doc table th,.doc table td{border:1px solid #000;padding:5px 7px;font-size:11.5px;text-align:left}
+.doc table td.r,.doc table th.r{text-align:right;font-family:monospace}
+.doc .meta{display:flex;justify-content:space-between;gap:20px;margin-top:8px;font-size:11.5px}
+.doc .sig{display:flex;justify-content:space-between;margin-top:60px;font-size:11.5px}
+.doc .sig div{border-top:1px solid #000;padding-top:5px;width:180px;text-align:center}`;
+    const page=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(title||'Watcon document')}</title><style>${docCss}</style></head><body><div class="doc">${html}</div><script>window.onload=function(){window.print();}<\/script></body></html>`;
+    const a=document.createElement('a');
+    a.href='data:text/html;charset=utf-8,'+encodeURIComponent(page);
+    a.download=(title||'watcon-document').replace(/[^\w\-]+/g,'-')+'.html'; a.click();
+  };
+}
+
+function printChallan(p,c){
+  doPrint(challanDocHTML(p,c), 'Challan '+c.no);
+}
+
+function printBill(p,b){
+  const A=b.lines.filter(l=>!l.extra), B=b.lines.filter(l=>l.extra);
+  const subA=A.reduce((s,l)=>s+l.amount,0), subB=B.reduce((s,l)=>s+l.amount,0);
+  let rows='',i=1;
+  const line=(l,tag)=>`<tr><td>${i++}</td><td>${esc(l.description)}${tag?` <i>${tag}</i>`:''}</td><td>${esc(l.unit)}</td><td class="r">${l.orderQty}</td><td class="r">${l.cumQty}</td><td class="r">${l.rate!==''?Number(l.rate).toLocaleString('en-IN'):''}</td><td class="r">${tag?'✓':'—'}</td><td class="r">${Number(l.amount).toLocaleString('en-IN',{minimumFractionDigits:2})}</td></tr>`;
+  rows+=`<tr><td colspan="8" style="background:#f0f0f0"><b>A. Supply as per Sales Order / BOQ</b></td></tr>`;
+  A.forEach(l=>rows+=line(l,''));
+  rows+=`<tr><td colspan="7" class="r"><b>Sub-total A</b></td><td class="r"><b>${subA.toLocaleString('en-IN',{minimumFractionDigits:2})}</b></td></tr>`;
+  if(B.length){
+    rows+=`<tr><td colspan="8" style="background:#f0f0f0"><b>B. Extra items / quantities sent to site — not in Sales Order</b></td></tr>`;
+    B.forEach(l=>rows+=line(l,'(beyond SO)'));
+    rows+=`<tr><td colspan="7" class="r"><b>Sub-total B (extras)</b></td><td class="r"><b>${subB.toLocaleString('en-IN',{minimumFractionDigits:2})}</b></td></tr>`;
+  }
+  doPrint(`${docHead()}<div class="dtitle">Running Account Bill</div>
+  <div class="meta"><div><b>Bill No:</b> ${esc(b.no)}<br><b>Bill date:</b> ${dfmt(b.date)}<br><b>Bill basis:</b> Cumulative material dispatched vide challans up to ${dfmt(b.date)}</div>
+  <div style="text-align:right"><b>Client:</b> ${esc(p.client)}<br>${esc(p.site||'')}<br><b>Project:</b> ${esc(p.name)}${p.poNumber?'<br><b>PO ref:</b> '+esc(p.poNumber)+' dt '+dfmt(p.poDate):''}</div></div>
+  <table><thead><tr><th>S.No</th><th>Description</th><th>Unit</th><th class="r">Order Qty</th><th class="r">Qty to date</th><th class="r">Rate (₹)</th><th class="r">Beyond SO</th><th class="r">Amount (₹)</th></tr></thead>
+  <tbody>${rows}</tbody>
+  <tfoot>
+   <tr><td colspan="7" class="r"><b>Gross value of work / supply to date (A${B.length?' + B':''})</b></td><td class="r"><b>${Number(b.grossBasic).toLocaleString('en-IN',{minimumFractionDigits:2})}</b></td></tr>
+   ${(b.discountCum||b.discountApplied)?`<tr><td colspan="7" class="r">Less: special discount (to date)</td><td class="r">− ${Number(b.discountCum||b.discountApplied).toLocaleString('en-IN',{minimumFractionDigits:2})}</td></tr>`:''}
+   ${b.gst?`<tr><td colspan="7" class="r">Add: GST @ ${state.settings.gstRate}% (as per terms — extra)</td><td class="r">${Number(b.gst).toLocaleString('en-IN',{minimumFractionDigits:2})}</td></tr>`:`<tr><td colspan="7" class="r">GST included in rates (as per terms)</td><td class="r">—</td></tr>`}
+   <tr><td colspan="7" class="r"><b>Gross payable to date</b></td><td class="r"><b>${Number(b.grossToDate).toLocaleString('en-IN',{minimumFractionDigits:2})}</b></td></tr>
+   <tr><td colspan="7" class="r">Less: billed in previous running bills</td><td class="r">− ${Number(b.priorBilled).toLocaleString('en-IN',{minimumFractionDigits:2})}</td></tr>
+   <tr><td colspan="7" class="r"><b>NET PAYABLE — THIS BILL</b></td><td class="r"><b>${Number(b.netPayable).toLocaleString('en-IN',{minimumFractionDigits:2})}</b></td></tr>
+  </tfoot></table>
+  <p style="margin-top:8px;font-size:10.5px"><b>Payment terms:</b> ${esc(p.terms.payment||'As agreed')} · <b>Transport:</b> ${p.terms.transport==='extra'?'Extra at actuals':'Included'}</p>
+  <div class="sig"><div>Client / Site Engineer</div><div>For ${esc(state.settings.company)}<br>Authorised Signatory</div></div>`, 'Bill '+b.no);
+}
+
+/* ---------------- Settings ---------------- */
+function renderSettings(){
+  const s=state.settings;
+  app.innerHTML=`<button class="back" id="bk">← Back</button>
+  <div class="card" style="max-width:640px"><div class="hd"><h3>Settings</h3></div><div class="bd">
+    <div class="frow">
+      <label class="f"><span class="t">Company name (on challans & bills)</span><input type="text" id="s_co" value="${esc(s.company)}"></label>
+      <label class="f"><span class="t">Address</span><input type="text" id="s_ad" value="${esc(s.address)}"></label>
+      <label class="f"><span class="t">Phone</span><input type="text" id="s_ph" value="${esc(s.phone)}"></label>
+      <label class="f"><span class="t">Email</span><input type="text" id="s_em" value="${esc(s.email||'')}"></label>
+      <label class="f"><span class="t">GSTIN</span><input type="text" id="s_gs" value="${esc(s.gstin)}"></label>
+      <label class="f"><span class="t">GST rate %</span><input type="number" id="s_gr" value="${s.gstRate}"></label>
+      <label class="f"><span class="t">Challan number prefix</span><input type="text" id="s_cp" value="${esc(s.challanPrefix)}"></label>
+      <label class="f"><span class="t">Next challan number</span><input type="number" id="s_cn" value="${s.challanNext}"></label>
+      <label class="f"><span class="t">Bill number prefix</span><input type="text" id="s_bp" value="${esc(s.billPrefix)}"></label>
+    </div>
+    <label class="f"><span class="t">Anthropic API key (only needed after deploying to Netlify — leave blank inside Claude)</span><input type="text" id="s_key" value="${esc(s.apiKey)}" placeholder="sk-ant-…"></label>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
+      <button class="btn p" id="sSave">Save settings</button>
+      <button class="btn" id="sExport">Export data backup (JSON)</button>
+      <button class="btn" id="sImport">Import backup</button>
+      <input type="file" id="sImpFile" accept="application/json" style="display:none">
+    </div>
+    <p class="note" style="margin-top:14px">Data is stored in this browser (localStorage) when the file is deployed to Netlify or opened directly. Take a JSON backup regularly — attachments are included in the backup.</p>
+  </div></div>`;
+  document.getElementById('bk').onclick=()=>{view={name:'dash'};render();};
+  document.getElementById('sSave').onclick=()=>{
+    s.company=document.getElementById('s_co').value; s.address=document.getElementById('s_ad').value;
+    s.phone=document.getElementById('s_ph').value; s.email=document.getElementById('s_em').value; s.gstin=document.getElementById('s_gs').value;
+    s.gstRate=Number(document.getElementById('s_gr').value)||18;
+    s.challanPrefix=document.getElementById('s_cp').value; s.challanNext=Number(document.getElementById('s_cn').value)||1;
+    s.billPrefix=document.getElementById('s_bp').value||'RA-';
+    s.apiKey=document.getElementById('s_key').value.trim();
+    save(); toast('Settings saved');
+  };
+  document.getElementById('sExport').onclick=()=>{
+    const a=document.createElement('a');
+    a.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(state));
+    a.download='watcon-pm-backup-'+today()+'.json'; a.click();
+  };
+  document.getElementById('sImport').onclick=()=>document.getElementById('sImpFile').click();
+  document.getElementById('sImpFile').onchange=e=>{
+    const f=e.target.files[0]; if(!f)return; const r=new FileReader();
+    r.onload=()=>{ try{ const j=JSON.parse(r.result); if(!j.projects) throw new Error('Not a Watcon backup file');
+      confirmModal('Replace all current data with this backup?', ()=>{ state=j; save(); toast('Backup restored'); view={name:'dash'}; render(); }); }
+      catch(err){ toast('Import failed: '+err.message); } };
+    r.readAsText(f);
+  };
+}
+
+if(!store.ok()) console.warn('localStorage unavailable — running with in-memory data (Claude preview). Deploy to Netlify for persistence.');
+render();
+</script>
+</body>
+</html>

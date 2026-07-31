@@ -1,0 +1,26 @@
+.seg {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  width: max-content;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+.seg button {
+  border: none;
+  background: #fff;
+  padding: 8px 15px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  border-right: 1px solid var(--line);
+}
+.seg button:last-child {
+  border-right: none;
+}
+.on {
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+}

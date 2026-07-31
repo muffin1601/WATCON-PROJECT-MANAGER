@@ -1,0 +1,521 @@
+generator client {
+  provider = "prisma-client-js"
+  // relationJoins: lets heavy multi-include reads (project detail /
+  // dashboard) run as ONE SQL query with JSON aggregation instead of one
+  // round trip per relation table — with the DB in ap-southeast-2, ~10
+  // sequential round trips at WAN latency were the bulk of the 5-10s page
+  // loads. Opt in per-query via relationLoadStrategy: "join".
+  previewFeatures = ["relationJoins"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------- Enums ----------
+
+enum ProjectStatus {
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+}
+
+enum ProjectType {
+  SWIMMING_POOL
+  WATER_BODY_FOUNTAIN
+  TILES_SUPPLY
+  TILES_SUPPLY_INSTALL
+  FIREPLACE
+  SAUNA_STEAM_SPA
+  MIXED_SCOPE
+}
+
+enum ApprovalMode {
+  PURCHASE_ORDER
+  QUOTE_EMAIL
+  QUOTE_WHATSAPP
+  QUOTE_VERBAL
+}
+
+enum TermsGst {
+  INCLUDED
+  EXTRA
+}
+
+enum TermsTransport {
+  INCLUDED
+  EXTRA
+}
+
+enum ChallanSource {
+  ISSUED_HERE
+  ATTACHED_EXTERNAL // e.g. Zoho
+}
+
+enum DocumentKind {
+  ORDER_COPY // legacy — superseded by PURCHASE_ORDER/BOQ for new uploads, kept for existing rows
+  APPROVAL_PROOF
+  CHALLAN_COPY
+  AMENDMENT_APPROVAL
+  PAYMENT_PROOF
+  // General-purpose project document library categories (Document Management System)
+  PURCHASE_ORDER
+  BOQ
+  DRAWING
+  INVOICE
+  VENDOR_DOCUMENT
+  RUNNING_BILL_COPY
+  PHOTO
+  OTHER
+}
+
+enum OcrStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+}
+
+enum PaymentMode {
+  BANK_TRANSFER
+  CHEQUE
+  UPI
+  CASH
+  ADJUSTMENT
+}
+
+enum ActivityAction {
+  CREATE
+  UPDATE
+  DELETE
+  PRINT
+  IMPORT
+  EXPORT
+}
+
+// ---------- Core ----------
+// No auth/users table: this app is public, single-tenant, no login (see PLAN.md).
+
+model Vendor {
+  id        String   @id @default(uuid())
+  name      String
+  gstin     String?
+  phone     String?
+  email     String?
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  purchaseOrders PurchaseOrder[]
+
+  @@map("vendors")
+}
+
+model Setting {
+  id             String  @id @default(uuid())
+  key            String  @unique // e.g. "company_profile", "numbering"
+  companyName    String  @default("Watcon International")
+  address        String  @default("S-36, Okhla Phase 2, New Delhi 110020")
+  phone          String  @default("9999969661")
+  email          String  @default("info@watcon.net")
+  gstin          String?
+  gstRatePct     Decimal @default(18) @db.Decimal(5, 2)
+  challanPrefix  String  @default("WC/CH/")
+  challanNext    Int     @default(1)
+  billPrefix     String  @default("RA-")
+  // Soft gate for challan edit/delete (the prototype's APP_PWD prompt) —
+  // NOT a security boundary: the app is public/no-auth by design, and this
+  // value reaches the client. It only prevents accidental edits.
+  appPassword    String  @default("pincode110020")
+  updatedAt      DateTime @updatedAt
+
+  @@map("settings")
+}
+
+// ---------- Project ----------
+
+model Project {
+  id           String        @id @default(uuid())
+  name         String
+  client       String
+  site         String?
+  type         ProjectType
+  status       ProjectStatus @default(IN_PROGRESS)
+
+  approvalMode      ApprovalMode @default(PURCHASE_ORDER)
+  approvalBasisNote String?      // free text for verbal approval
+
+  poNumber String?
+  poDate   DateTime?
+
+  termsGst       TermsGst       @default(EXTRA)
+  termsTransport TermsTransport @default(EXTRA)
+  paymentTerms   String?
+
+  aiGenerated Boolean @default(false) // sales order was drafted via OCR
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items       PoItem[]
+  challans    Challan[]
+  bills       Bill[]
+  payments    Payment[]
+  discounts   Discount[]
+  amendments  Amendment[]
+  documents   Document[]
+  purchaseOrders PurchaseOrder[]
+  activityLogs   ActivityLog[]
+
+  @@index([client])
+  @@index([status])
+  @@map("projects")
+}
+
+// Sales order line item (called PoItem to match the PO module naming, but
+// represents the project's Sales Order line as in the source HTML `p.items`).
+model PoItem {
+  id          String  @id @default(uuid())
+  projectId   String
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  description String
+  unit        String  @default("Nos")
+  qty         Decimal @db.Decimal(14, 3)
+  rate        Decimal @db.Decimal(14, 2)
+
+  sortOrder Int @default(0)
+
+  challanLines     ChallanItem[]
+  purchaseOrderLines PoLineItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+  @@map("po_items")
+}
+
+// ---------- Purchase Orders (vendor-facing procurement, distinct from the
+// client Sales Order above; required by spec's "Purchase Order Module") ----------
+
+enum PurchaseOrderStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_RECEIVED
+  COMPLETED
+  CANCELLED
+}
+
+model PurchaseOrder {
+  id          String              @id @default(uuid())
+  poNumber    String              @unique
+  vendorId    String
+  vendor      Vendor              @relation(fields: [vendorId], references: [id])
+  projectId   String
+  project     Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status      PurchaseOrderStatus @default(DRAFT)
+  poDate      DateTime
+  remarks     String?
+
+  subtotal    Decimal @default(0) @db.Decimal(14, 2)
+  taxAmount   Decimal @default(0) @db.Decimal(14, 2)
+  discountAmount Decimal @default(0) @db.Decimal(14, 2)
+  totalAmount Decimal @default(0) @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lines       PoLineItem[]
+  documents   Document[]
+
+  @@index([vendorId])
+  @@index([projectId])
+  @@index([status])
+  @@map("purchase_orders")
+}
+
+model PoLineItem {
+  id              String        @id @default(uuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  linkedItemId    String?
+  linkedItem      PoItem?       @relation(fields: [linkedItemId], references: [id], onDelete: SetNull)
+
+  description String
+  unit        String  @default("Nos")
+  qty         Decimal @db.Decimal(14, 3)
+  unitPrice   Decimal @db.Decimal(14, 2)
+  taxPct      Decimal @default(0) @db.Decimal(5, 2)
+  discountAmount Decimal @default(0) @db.Decimal(14, 2)
+  total       Decimal @db.Decimal(14, 2)
+
+  @@index([purchaseOrderId])
+  @@map("po_line_items")
+}
+
+// ---------- Challans (delivery challans against the Sales Order) ----------
+
+model Challan {
+  id          String        @id @default(uuid())
+  projectId   String
+  project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  no          String
+  date        DateTime
+  source      ChallanSource @default(ISSUED_HERE)
+  vehicle     String?
+  driver      String?
+  remarks     String?
+  manualValue Decimal?      @db.Decimal(14, 2) // used when source = ATTACHED_EXTERNAL without SO linkage
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items      ChallanItem[]
+  extraItems ChallanExtraItem[]
+  documents  Document[]
+
+  @@unique([projectId, no])
+  @@index([projectId, date])
+  @@map("challans")
+}
+
+// Qty dispatched against a Sales Order item (qty = within SO qty, extraQty = beyond BOQ)
+model ChallanItem {
+  id        String  @id @default(uuid())
+  challanId String
+  challan   Challan @relation(fields: [challanId], references: [id], onDelete: Cascade)
+  itemId    String
+  item      PoItem  @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  qty      Decimal @default(0) @db.Decimal(14, 3)
+  extraQty Decimal @default(0) @db.Decimal(14, 3)
+
+  @@index([challanId])
+  @@index([itemId])
+  @@map("challan_items")
+}
+
+// Items dispatched that are not on the Sales Order at all
+model ChallanExtraItem {
+  id          String  @id @default(uuid())
+  challanId   String
+  challan     Challan @relation(fields: [challanId], references: [id], onDelete: Cascade)
+
+  description String
+  unit        String  @default("Nos")
+  qty         Decimal @db.Decimal(14, 3)
+  rate        Decimal @default(0) @db.Decimal(14, 2)
+
+  @@index([challanId])
+  @@map("challan_extra_items")
+}
+
+// ---------- Running Bills ----------
+
+model Bill {
+  id             String   @id @default(uuid())
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  no             String
+  date           DateTime // "billed up to" date
+
+  grossBasic     Decimal  @db.Decimal(14, 2)
+  discountApplied Decimal @default(0) @db.Decimal(14, 2) // discount newly applied in this bill
+  discountCum    Decimal  @default(0) @db.Decimal(14, 2) // cumulative discount to date
+  gst            Decimal  @default(0) @db.Decimal(14, 2)
+  grossToDate    Decimal  @db.Decimal(14, 2)
+  priorBilled    Decimal  @db.Decimal(14, 2)
+  netPayable     Decimal  @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now())
+
+  lines BillLine[]
+
+  @@unique([projectId, no])
+  @@index([projectId, date])
+  @@map("bills")
+}
+
+model BillLine {
+  id          String  @id @default(uuid())
+  billId      String
+  bill        Bill    @relation(fields: [billId], references: [id], onDelete: Cascade)
+
+  description String
+  unit        String?
+  orderQty    Decimal? @db.Decimal(14, 3)
+  cumQty      Decimal? @db.Decimal(14, 3)
+  rate        Decimal? @db.Decimal(14, 2)
+  amount      Decimal  @db.Decimal(14, 2)
+  isExtra     Boolean  @default(false) // beyond Sales Order
+
+  @@index([billId])
+  @@map("bill_lines")
+}
+
+// ---------- Payments ----------
+
+model Payment {
+  id        String      @id @default(uuid())
+  projectId String
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  date      DateTime
+  amount    Decimal     @db.Decimal(14, 2)
+  mode      PaymentMode
+  reference String?
+  recordedByName String? // free-text; no user accounts in this app
+
+  createdAt DateTime @default(now())
+
+  documents Document[]
+
+  @@index([projectId, date])
+  @@map("payments")
+}
+
+// ---------- Discounts & Amendments ----------
+
+model Discount {
+  id        String   @id @default(uuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  date   DateTime
+  amount Decimal  @db.Decimal(14, 2)
+  reason String?
+
+  createdAt DateTime @default(now())
+
+  @@index([projectId])
+  @@map("discounts")
+}
+
+model Amendment {
+  id          String  @id @default(uuid())
+  projectId   String
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  date        DateTime
+  description String
+  valueChange Decimal  @db.Decimal(14, 2) // signed: negative = reduction
+
+  createdAt DateTime @default(now())
+
+  documents Document[]
+
+  @@index([projectId])
+  @@map("amendments")
+}
+
+// ---------- Documents (Supabase Storage metadata) & OCR ----------
+
+model Document {
+  id         String       @id @default(uuid())
+  kind       DocumentKind
+
+  projectId       String?
+  project         Project?       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  challanId       String?
+  challan         Challan?       @relation(fields: [challanId], references: [id], onDelete: Cascade)
+  paymentId       String?
+  payment         Payment?       @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  amendmentId     String?
+  amendment       Amendment?     @relation(fields: [amendmentId], references: [id], onDelete: Cascade)
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  fileName    String
+  mimeType    String
+  sizeBytes   Int
+  storagePath String // Supabase Storage object path
+  bucket      String  @default("watcon-documents")
+  checksum    String? // SHA-256 of file contents — duplicate detection
+
+  notes String?
+
+  // Version history: the first upload of a document is its own root
+  // (rootDocumentId = null, versionNumber = 1). Re-uploading a replacement
+  // creates a new Document row pointing rootDocumentId at the original,
+  // with versionNumber incremented — this keeps every version as a full,
+  // independent row (own storage object, own extracted text) rather than a
+  // mutable in-place overwrite, so nothing is ever lost.
+  rootDocumentId String?
+  rootDocument    Document?  @relation("DocumentVersions", fields: [rootDocumentId], references: [id], onDelete: Cascade)
+  versions        Document[] @relation("DocumentVersions")
+  versionNumber   Int        @default(1)
+
+  uploadedAt DateTime @default(now())
+
+  ocrResult OcrResult?
+  texts     DocumentText[]
+
+  @@index([projectId])
+  @@index([challanId])
+  @@index([rootDocumentId])
+  @@index([checksum])
+  @@map("documents")
+}
+
+// Raw extracted text per page — deliberately NOT interpreted into
+// structured fields (no vendor/PO-number/item guessing). Digital PDFs use
+// their embedded text layer; scanned PDFs/images use Tesseract OCR. Exists
+// purely so services/searchService.ts can find "which document, which page"
+// a phrase appears on — see services/textExtraction/.
+model DocumentText {
+  id         String   @id @default(uuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  pageNumber Int
+  rawText    String
+  confidence Float? // OCR confidence (0-100), null for digital-text-layer extraction
+
+  createdAt DateTime @default(now())
+
+  @@unique([documentId, pageNumber])
+  @@index([documentId])
+  @@map("document_texts")
+}
+
+model OcrResult {
+  id         String    @id @default(uuid())
+  documentId String    @unique
+  document   Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  provider   String    // e.g. "anthropic", "google-vision"
+  status     OcrStatus @default(PENDING)
+  rawResponse Json?
+  extracted  Json?     // normalized: { clientName, poNumber, poDate, siteAddress, terms, items[] }
+  errorMessage String?
+
+  startedAt  DateTime?
+  completedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@map("ocr_results")
+}
+
+// ---------- Activity log ----------
+
+model ActivityLog {
+  id        String         @id @default(uuid())
+  projectId String?
+  project   Project?       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  entity    String         // e.g. "Challan", "Bill", "Payment"
+  entityId  String?
+  action    ActivityAction
+  summary   String
+  metadata  Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([projectId, createdAt])
+  @@map("activity_logs")
+}

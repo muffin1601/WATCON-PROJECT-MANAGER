@@ -1,0 +1,31 @@
+.grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+/* Ported from .att — the same row treatment used for file attachments,
+   reused here for discount/amendment line items. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  background: #fafbfb;
+}
+.nm {
+  font-weight: 600;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mt {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}

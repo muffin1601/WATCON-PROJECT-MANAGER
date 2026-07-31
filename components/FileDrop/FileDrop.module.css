@@ -1,0 +1,17 @@
+.drop {
+  border: 2px dashed var(--line);
+  border-radius: var(--radius);
+  padding: 26px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13.5px;
+  background: #fafbfb;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.drop:hover,
+.over {
+  border-color: var(--primary);
+  color: var(--primary-dark);
+  background: var(--primary-soft);
+}
