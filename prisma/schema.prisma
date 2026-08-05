@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
   // relationJoins: lets heavy multi-include reads (project detail /
   // dashboard) run as ONE SQL query with JSON aggregation instead of one
   // round trip per relation table — with the DB in ap-southeast-2, ~10
@@ -78,6 +78,37 @@ enum OcrStatus {
   FAILED
 }
 
+// Stages the AI document engine reports back to the UI progress bar. Kept in
+// the exact order the spec lists them so the bar only ever moves forward.
+enum ExtractionStage {
+  UPLOADING
+  READING
+  OCR
+  EXTRACTING
+  VALIDATING
+  GENERATING
+  COMPLETED
+}
+
+enum ExtractionJobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum ExtractionJobKind {
+  ORDER // BOQ / Purchase Order / approved quotation -> Sales Order draft
+  CHALLAN // Delivery challan -> dispatched quantities
+  CLASSIFY // Document-type detection only
+}
+
+enum BackupStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
 enum PaymentMode {
   BANK_TRANSFER
   CHEQUE
@@ -114,22 +145,22 @@ model Vendor {
 }
 
 model Setting {
-  id             String  @id @default(uuid())
-  key            String  @unique // e.g. "company_profile", "numbering"
-  companyName    String  @default("Watcon International")
-  address        String  @default("S-36, Okhla Phase 2, New Delhi 110020")
-  phone          String  @default("9999969661")
-  email          String  @default("info@watcon.net")
-  gstin          String?
-  gstRatePct     Decimal @default(18) @db.Decimal(5, 2)
-  challanPrefix  String  @default("WC/CH/")
-  challanNext    Int     @default(1)
-  billPrefix     String  @default("RA-")
+  id            String   @id @default(uuid())
+  key           String   @unique // e.g. "company_profile", "numbering"
+  companyName   String   @default("Watcon International")
+  address       String   @default("S-36, Okhla Phase 2, New Delhi 110020")
+  phone         String   @default("9999969661")
+  email         String   @default("info@watcon.net")
+  gstin         String?
+  gstRatePct    Decimal  @default(18) @db.Decimal(5, 2)
+  challanPrefix String   @default("WC/CH/")
+  challanNext   Int      @default(1)
+  billPrefix    String   @default("RA-")
   // Soft gate for challan edit/delete (the prototype's APP_PWD prompt) —
   // NOT a security boundary: the app is public/no-auth by design, and this
   // value reaches the client. It only prevents accidental edits.
-  appPassword    String  @default("pincode110020")
-  updatedAt      DateTime @updatedAt
+  appPassword   String   @default("pincode110020")
+  updatedAt     DateTime @updatedAt
 
   @@map("settings")
 }
@@ -137,15 +168,15 @@ model Setting {
 // ---------- Project ----------
 
 model Project {
-  id           String        @id @default(uuid())
-  name         String
-  client       String
-  site         String?
-  type         ProjectType
-  status       ProjectStatus @default(IN_PROGRESS)
+  id     String        @id @default(uuid())
+  name   String
+  client String
+  site   String?
+  type   ProjectType
+  status ProjectStatus @default(IN_PROGRESS)
 
   approvalMode      ApprovalMode @default(PURCHASE_ORDER)
-  approvalBasisNote String?      // free text for verbal approval
+  approvalBasisNote String? // free text for verbal approval
 
   poNumber String?
   poDate   DateTime?
@@ -159,15 +190,16 @@ model Project {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  items       PoItem[]
-  challans    Challan[]
-  bills       Bill[]
-  payments    Payment[]
-  discounts   Discount[]
-  amendments  Amendment[]
-  documents   Document[]
+  items          PoItem[]
+  challans       Challan[]
+  bills          Bill[]
+  payments       Payment[]
+  discounts      Discount[]
+  amendments     Amendment[]
+  documents      Document[]
   purchaseOrders PurchaseOrder[]
   activityLogs   ActivityLog[]
+  extractionJobs ExtractionJob[]
 
   @@index([client])
   @@index([status])
@@ -177,9 +209,9 @@ model Project {
 // Sales order line item (called PoItem to match the PO module naming, but
 // represents the project's Sales Order line as in the source HTML `p.items`).
 model PoItem {
-  id          String  @id @default(uuid())
-  projectId   String
-  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id        String  @id @default(uuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   description String
   unit        String  @default("Nos")
@@ -188,7 +220,7 @@ model PoItem {
 
   sortOrder Int @default(0)
 
-  challanLines     ChallanItem[]
+  challanLines       ChallanItem[]
   purchaseOrderLines PoLineItem[]
 
   createdAt DateTime @default(now())
@@ -210,26 +242,26 @@ enum PurchaseOrderStatus {
 }
 
 model PurchaseOrder {
-  id          String              @id @default(uuid())
-  poNumber    String              @unique
-  vendorId    String
-  vendor      Vendor              @relation(fields: [vendorId], references: [id])
-  projectId   String
-  project     Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  status      PurchaseOrderStatus @default(DRAFT)
-  poDate      DateTime
-  remarks     String?
+  id        String              @id @default(uuid())
+  poNumber  String              @unique
+  vendorId  String
+  vendor    Vendor              @relation(fields: [vendorId], references: [id])
+  projectId String
+  project   Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status    PurchaseOrderStatus @default(DRAFT)
+  poDate    DateTime
+  remarks   String?
 
-  subtotal    Decimal @default(0) @db.Decimal(14, 2)
-  taxAmount   Decimal @default(0) @db.Decimal(14, 2)
+  subtotal       Decimal @default(0) @db.Decimal(14, 2)
+  taxAmount      Decimal @default(0) @db.Decimal(14, 2)
   discountAmount Decimal @default(0) @db.Decimal(14, 2)
-  totalAmount Decimal @default(0) @db.Decimal(14, 2)
+  totalAmount    Decimal @default(0) @db.Decimal(14, 2)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  lines       PoLineItem[]
-  documents   Document[]
+  lines     PoLineItem[]
+  documents Document[]
 
   @@index([vendorId])
   @@index([projectId])
@@ -244,13 +276,13 @@ model PoLineItem {
   linkedItemId    String?
   linkedItem      PoItem?       @relation(fields: [linkedItemId], references: [id], onDelete: SetNull)
 
-  description String
-  unit        String  @default("Nos")
-  qty         Decimal @db.Decimal(14, 3)
-  unitPrice   Decimal @db.Decimal(14, 2)
-  taxPct      Decimal @default(0) @db.Decimal(5, 2)
+  description    String
+  unit           String  @default("Nos")
+  qty            Decimal @db.Decimal(14, 3)
+  unitPrice      Decimal @db.Decimal(14, 2)
+  taxPct         Decimal @default(0) @db.Decimal(5, 2)
   discountAmount Decimal @default(0) @db.Decimal(14, 2)
-  total       Decimal @db.Decimal(14, 2)
+  total          Decimal @db.Decimal(14, 2)
 
   @@index([purchaseOrderId])
   @@map("po_line_items")
@@ -259,9 +291,9 @@ model PoLineItem {
 // ---------- Challans (delivery challans against the Sales Order) ----------
 
 model Challan {
-  id          String        @id @default(uuid())
-  projectId   String
-  project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id        String  @id @default(uuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   no          String
   date        DateTime
@@ -301,9 +333,9 @@ model ChallanItem {
 
 // Items dispatched that are not on the Sales Order at all
 model ChallanExtraItem {
-  id          String  @id @default(uuid())
-  challanId   String
-  challan     Challan @relation(fields: [challanId], references: [id], onDelete: Cascade)
+  id        String  @id @default(uuid())
+  challanId String
+  challan   Challan @relation(fields: [challanId], references: [id], onDelete: Cascade)
 
   description String
   unit        String  @default("Nos")
@@ -317,20 +349,20 @@ model ChallanExtraItem {
 // ---------- Running Bills ----------
 
 model Bill {
-  id             String   @id @default(uuid())
-  projectId      String
-  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id        String  @id @default(uuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  no             String
-  date           DateTime // "billed up to" date
+  no   String
+  date DateTime // "billed up to" date
 
-  grossBasic     Decimal  @db.Decimal(14, 2)
+  grossBasic      Decimal @db.Decimal(14, 2)
   discountApplied Decimal @default(0) @db.Decimal(14, 2) // discount newly applied in this bill
-  discountCum    Decimal  @default(0) @db.Decimal(14, 2) // cumulative discount to date
-  gst            Decimal  @default(0) @db.Decimal(14, 2)
-  grossToDate    Decimal  @db.Decimal(14, 2)
-  priorBilled    Decimal  @db.Decimal(14, 2)
-  netPayable     Decimal  @db.Decimal(14, 2)
+  discountCum     Decimal @default(0) @db.Decimal(14, 2) // cumulative discount to date
+  gst             Decimal @default(0) @db.Decimal(14, 2)
+  grossToDate     Decimal @db.Decimal(14, 2)
+  priorBilled     Decimal @db.Decimal(14, 2)
+  netPayable      Decimal @db.Decimal(14, 2)
 
   createdAt DateTime @default(now())
 
@@ -342,9 +374,9 @@ model Bill {
 }
 
 model BillLine {
-  id          String  @id @default(uuid())
-  billId      String
-  bill        Bill    @relation(fields: [billId], references: [id], onDelete: Cascade)
+  id     String @id @default(uuid())
+  billId String
+  bill   Bill   @relation(fields: [billId], references: [id], onDelete: Cascade)
 
   description String
   unit        String?
@@ -361,14 +393,14 @@ model BillLine {
 // ---------- Payments ----------
 
 model Payment {
-  id        String      @id @default(uuid())
+  id        String  @id @default(uuid())
   projectId String
-  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  date      DateTime
-  amount    Decimal     @db.Decimal(14, 2)
-  mode      PaymentMode
-  reference String?
+  date           DateTime
+  amount         Decimal     @db.Decimal(14, 2)
+  mode           PaymentMode
+  reference      String?
   recordedByName String? // free-text; no user accounts in this app
 
   createdAt DateTime @default(now())
@@ -382,9 +414,9 @@ model Payment {
 // ---------- Discounts & Amendments ----------
 
 model Discount {
-  id        String   @id @default(uuid())
+  id        String  @id @default(uuid())
   projectId String
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   date   DateTime
   amount Decimal  @db.Decimal(14, 2)
@@ -397,9 +429,9 @@ model Discount {
 }
 
 model Amendment {
-  id          String  @id @default(uuid())
-  projectId   String
-  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id        String  @id @default(uuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   date        DateTime
   description String
@@ -416,8 +448,8 @@ model Amendment {
 // ---------- Documents (Supabase Storage metadata) & OCR ----------
 
 model Document {
-  id         String       @id @default(uuid())
-  kind       DocumentKind
+  id   String       @id @default(uuid())
+  kind DocumentKind
 
   projectId       String?
   project         Project?       @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -446,14 +478,15 @@ model Document {
   // independent row (own storage object, own extracted text) rather than a
   // mutable in-place overwrite, so nothing is ever lost.
   rootDocumentId String?
-  rootDocument    Document?  @relation("DocumentVersions", fields: [rootDocumentId], references: [id], onDelete: Cascade)
-  versions        Document[] @relation("DocumentVersions")
-  versionNumber   Int        @default(1)
+  rootDocument   Document?  @relation("DocumentVersions", fields: [rootDocumentId], references: [id], onDelete: Cascade)
+  versions       Document[] @relation("DocumentVersions")
+  versionNumber  Int        @default(1)
 
   uploadedAt DateTime @default(now())
 
-  ocrResult OcrResult?
-  texts     DocumentText[]
+  ocrResult      OcrResult?
+  texts          DocumentText[]
+  extractionJobs ExtractionJob[]
 
   @@index([projectId])
   @@index([challanId])
@@ -484,35 +517,108 @@ model DocumentText {
 }
 
 model OcrResult {
-  id         String    @id @default(uuid())
-  documentId String    @unique
-  document   Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  id         String   @id @default(uuid())
+  documentId String   @unique
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
-  provider   String    // e.g. "anthropic", "google-vision"
-  status     OcrStatus @default(PENDING)
-  rawResponse Json?
-  extracted  Json?     // normalized: { clientName, poNumber, poDate, siteAddress, terms, items[] }
+  provider     String // e.g. "anthropic", "google-vision"
+  status       OcrStatus @default(PENDING)
+  rawResponse  Json?
+  extracted    Json? // normalized: { clientName, poNumber, poDate, siteAddress, terms, items[] }
   errorMessage String?
 
-  startedAt  DateTime?
+  startedAt   DateTime?
   completedAt DateTime?
-  createdAt  DateTime  @default(now())
+  createdAt   DateTime  @default(now())
 
   @@map("ocr_results")
+}
+
+// ---------- AI document engine ----------
+
+// One row per document the AI engine reads. The row IS the progress bar:
+// the browser polls it for stage/percent instead of holding a long request
+// open, so a 50-page BOQ survives a page refresh, a navigation, or a
+// serverless function that would otherwise time out mid-extraction.
+model ExtractionJob {
+  id          String              @id @default(uuid())
+  kind        ExtractionJobKind
+  status      ExtractionJobStatus @default(QUEUED)
+  stage       ExtractionStage     @default(UPLOADING)
+  // 0-100, advanced as stages complete. Coarse by design: real per-page
+  // progress isn't observable inside a single model call.
+  progressPct Int                 @default(0)
+
+  // Optional because the New Project flow extracts a PO *before* a project
+  // exists to attach it to — the same reason /api/parse-order is stateless.
+  projectId  String?
+  project    Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  documentId String?
+  document   Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  fileName   String
+  mimeType   String
+  sizeBytes  Int
+  pageCount  Int     @default(0)
+  // "pdf-digital" | "pdf-scanned" | "image" | "spreadsheet" — drives whether
+  // the UI shows the OCR stage at all.
+  sourceKind String?
+
+  detectedType String? // BOQ | PURCHASE_ORDER | CHALLAN | UNKNOWN
+  modelUsed    String?
+
+  // Mapped, validated payload the review UI renders. Shape depends on `kind`.
+  result Json?
+  // Token counts for cost attribution: { inputTokens, outputTokens, cacheReadTokens, ... }
+  usage  Json?
+
+  errorMessage String?
+  attempts     Int     @default(0)
+
+  createdAt   DateTime  @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  @@index([projectId])
+  @@index([status, createdAt])
+  @@map("extraction_jobs")
+}
+
+// Audit trail for the weekly off-site backup. Exists so a silently failing
+// backup is visible instead of being discovered when a restore is needed.
+model BackupRun {
+  id     String       @id @default(uuid())
+  status BackupStatus @default(RUNNING)
+
+  fileName     String?
+  sizeBytes    Int?
+  destination  String  @default("google-drive")
+  remoteFileId String? // Google Drive file id, once uploaded
+  projectCount Int?
+  checksum     String?
+
+  errorMessage String?
+  attempts     Int     @default(1)
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([status, startedAt])
+  @@map("backup_runs")
 }
 
 // ---------- Activity log ----------
 
 model ActivityLog {
-  id        String         @id @default(uuid())
+  id        String   @id @default(uuid())
   projectId String?
-  project   Project?       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  entity    String         // e.g. "Challan", "Bill", "Payment"
-  entityId  String?
-  action    ActivityAction
-  summary   String
-  metadata  Json?
+  entity   String // e.g. "Challan", "Bill", "Payment"
+  entityId String?
+  action   ActivityAction
+  summary  String
+  metadata Json?
 
   createdAt DateTime @default(now())
 

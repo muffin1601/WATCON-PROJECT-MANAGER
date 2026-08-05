@@ -27,6 +27,8 @@ import { inr, todayIso } from "../../lib/format";
 import { apiFetch } from "../../lib/apiClient";
 import { useToast } from "../Toast/ToastProvider";
 import { useUploadDocument } from "../../hooks/useUploadDocument";
+import { useExtractionJob } from "../../hooks/useExtractionJob";
+import { ProgressBar } from "../ProgressBar/ProgressBar";
 import { extractedOrderSchema } from "../../modules/import/schema";
 import styles from "./ProjectForm.module.css";
 
@@ -61,9 +63,14 @@ export function ProjectForm({ gstRatePct }: { gstRatePct: number }) {
 
   const [orderFile, setOrderFile] = useState<File | null>(null);
   const [approvalFiles, setApprovalFiles] = useState<File[]>([]);
-  const [parseState, setParseState] = useState<
-    { status: "idle" } | { status: "parsing" } | { status: "done"; itemCount: number } | { status: "failed"; message: string }
-  >({ status: "idle" });
+  // Live stage/percent of the AI read. The job itself lives in the database,
+  // so this is only a view of it.
+  const extraction = useExtractionJob();
+  // What the finished read produced, for the summary line under the drop zone.
+  const [parseSummary, setParseSummary] = useState<
+    | { itemCount: number; detectedType: string | null; pageCount: number; issues: { severity: string; message: string }[]; flaggedRows: number[] }
+    | null
+  >(null);
   // Totals-block extras read from the document: the discount is auto-created
   // as a special discount on save; a GST rate differing from Settings only
   // warns (the rate is a global setting — a document shouldn't silently
@@ -103,38 +110,45 @@ export function ProjectForm({ gstRatePct }: { gstRatePct: number }) {
   const items = watch("items");
   const orderBase = items.reduce((s, i) => s + (Number(i.qty) || 0) * (Number(i.rate) || 0), 0);
 
-  // Ported from the prototype's handleOrderFile(): on attach, read the
-  // document (locally — pdf-parse tables/text + Tesseract for images, no
-  // cloud AI), fill header fields only where still empty, and populate the
-  // Sales Order items grid. Everything stays editable before saving.
+  // Same behaviour as the prototype's handleOrderFile(): attach a PO/BOQ, and
+  // the Sales Order is prepared for you. What changed is only what does the
+  // reading — Claude on the server, via a background job, instead of the
+  // in-browser call the prototype made with a key it kept in localStorage.
+  //
+  // Header fields are still filled only where empty, so a value the user has
+  // already typed is never overwritten by the document.
   async function handleOrderFile(file: File) {
     setOrderFile(file);
-    setParseState({ status: "parsing" });
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/parse-order", { method: "POST", body: fd });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Failed to read the document");
-      const parsed = extractedOrderSchema.parse(data.extracted);
+    setParseSummary(null);
 
-      if (parsed.projectName && !getValues("name")) setValue("name", parsed.projectName);
-      if (parsed.clientName && !getValues("client")) setValue("client", parsed.clientName);
-      if (parsed.siteAddress && !getValues("site")) setValue("site", parsed.siteAddress);
-      if (parsed.poNumber && !getValues("poNumber")) setValue("poNumber", parsed.poNumber);
-      if (parsed.poDate) setValue("poDate", parsed.poDate);
-      if (parsed.terms.gst === "included") setValue("termsGst", "INCLUDED");
-      if (parsed.terms.transport === "included") setValue("termsTransport", "INCLUDED");
-      if (parsed.terms.payment && !getValues("paymentTerms")) setValue("paymentTerms", parsed.terms.payment);
-      if (parsed.items.length > 0) {
-        replace(parsed.items.map((it) => ({ description: it.description, unit: it.unit, qty: it.qty, rate: it.rate })));
-      }
-      setParsedDiscount(parsed.discountAmount || parsed.discountPct ? { amount: parsed.discountAmount, pct: parsed.discountPct } : null);
-      setParsedGstRate(parsed.gstRatePct);
-      setParseState({ status: "done", itemCount: parsed.items.length });
-    } catch (err) {
-      setParseState({ status: "failed", message: err instanceof Error ? err.message : "Failed to read the document" });
+    const job = await extraction.start(file, "order");
+    if (!job) return; // failure message is rendered from `extraction.phase`
+
+    const parsed = extractedOrderSchema.parse(job.result);
+
+    if (parsed.projectName && !getValues("name")) setValue("name", parsed.projectName);
+    if (parsed.clientName && !getValues("client")) setValue("client", parsed.clientName);
+    if (parsed.siteAddress && !getValues("site")) setValue("site", parsed.siteAddress);
+    if (parsed.poNumber && !getValues("poNumber")) setValue("poNumber", parsed.poNumber);
+    if (parsed.poDate) setValue("poDate", parsed.poDate);
+    if (parsed.terms.gst === "included") setValue("termsGst", "INCLUDED");
+    if (parsed.terms.transport === "included") setValue("termsTransport", "INCLUDED");
+    if (parsed.terms.payment && !getValues("paymentTerms")) setValue("paymentTerms", parsed.terms.payment);
+    if (parsed.items.length > 0) {
+      replace(parsed.items.map((it) => ({ description: it.description, unit: it.unit, qty: it.qty, rate: it.rate })));
     }
+
+    setParsedDiscount(
+      parsed.discountAmount || parsed.discountPct ? { amount: parsed.discountAmount, pct: parsed.discountPct } : null
+    );
+    setParsedGstRate(parsed.gstRatePct);
+    setParseSummary({
+      itemCount: parsed.items.length,
+      detectedType: job.detectedType,
+      pageCount: job.pageCount,
+      issues: parsed.issues,
+      flaggedRows: parsed.flaggedRows,
+    });
   }
 
   const createMutation = useMutation({
@@ -296,8 +310,8 @@ export function ProjectForm({ gstRatePct }: { gstRatePct: number }) {
 
           <h3 className={styles.sectionTitle}>Order copy (PO / BOQ / approved quotation)</h3>
           <p className={styles.hint}>
-            Attach the PDF or image — it is read automatically (locally, no external AI service) and the Sales Order
-            is prepared for you. Review and edit everything before saving.
+            Attach the PDF, scan, Excel, CSV or image — it is read automatically and the Sales Order is prepared for
+            you. Review and edit everything before saving.
           </p>
           {orderFile ? (
             <div style={{ marginBottom: 14 }}>
@@ -307,31 +321,50 @@ export function ProjectForm({ gstRatePct }: { gstRatePct: number }) {
                 onView={() => window.open(URL.createObjectURL(orderFile), "_blank")}
                 onRemove={() => {
                   setOrderFile(null);
-                  setParseState({ status: "idle" });
+                  setParseSummary(null);
+                  extraction.reset();
                 }}
               />
             </div>
           ) : (
             <div style={{ marginBottom: 14 }}>
-              <FileDrop accept="application/pdf,image/*" onFile={handleOrderFile}>
-                Drop the PO / BOQ / quotation here, or click to choose a file
+              <FileDrop
+                accept="application/pdf,image/png,image/jpeg,.xlsx,.xls,.csv"
+                onFile={handleOrderFile}
+              >
+                Drop the PO / BOQ / quotation here — PDF, Excel (.xlsx/.xls), CSV or image — or click to choose a file
               </FileDrop>
             </div>
           )}
-          {parseState.status === "parsing" && (
-            <p className={styles.hint}>
-              <Spinner />
-              <AiBadge>Reading the document and preparing the sales order…</AiBadge>
-            </p>
+
+          {extraction.phase.status === "running" && (
+            <div style={{ marginBottom: 14 }}>
+              <p className={styles.hint}>
+                <Spinner />
+                <AiBadge>
+                  {extraction.phase.job.stageLabel}
+                  {extraction.phase.job.pageCount > 0 ? ` · ${extraction.phase.job.pageCount} page(s)` : ""}…
+                </AiBadge>
+              </p>
+              <ProgressBar percent={extraction.phase.job.progressPct} />
+            </div>
           )}
-          {parseState.status === "done" && (
+
+          {parseSummary && (
             <p className={styles.hint}>
               <AiBadge>
-                Sales order drafted — {parseState.itemCount} item(s) read from the document. Review below and edit if
+                Sales order drafted — {parseSummary.itemCount} item(s) read
+                {parseSummary.pageCount > 0 ? ` from ${parseSummary.pageCount} page(s)` : ""}. Review below and edit if
                 needed.
               </AiBadge>{" "}
-              {parseState.itemCount === 0 && (
+              {parseSummary.detectedType === "BOQ" && <Chip tone="teal">Read as a BOQ</Chip>}{" "}
+              {parseSummary.itemCount === 0 && (
                 <Chip tone="gold">No item rows recognized — add them manually below, or check the document layout.</Chip>
+              )}{" "}
+              {parseSummary.flaggedRows.length > 0 && (
+                <Chip tone="gold">
+                  {parseSummary.flaggedRows.length} row(s) need checking — see the notes below before saving.
+                </Chip>
               )}{" "}
               {parsedDiscount && (
                 <Chip tone="teal">
@@ -347,9 +380,26 @@ export function ProjectForm({ gstRatePct }: { gstRatePct: number }) {
               )}
             </p>
           )}
-          {parseState.status === "failed" && (
+
+          {/* Validation notes. These never block saving — the spec is explicit
+              that low confidence highlights a row for correction and carries on. */}
+          {parseSummary && parseSummary.issues.length > 0 && (
+            <ul className={styles.hint} style={{ margin: "0 0 14px 0", paddingLeft: 18 }}>
+              {parseSummary.issues.slice(0, 12).map((issue, i) => (
+                <li key={i} style={{ marginBottom: 3 }}>
+                  <Chip tone={issue.severity === "error" ? "red" : "gold"}>
+                    {issue.severity === "error" ? "Check" : "Note"}
+                  </Chip>{" "}
+                  {issue.message}
+                </li>
+              ))}
+              {parseSummary.issues.length > 12 && <li>…and {parseSummary.issues.length - 12} more.</li>}
+            </ul>
+          )}
+
+          {extraction.phase.status === "failed" && (
             <p className={styles.hint}>
-              <Chip tone="red">Auto-read failed</Chip> {parseState.message} — you can still add items manually.
+              <Chip tone="red">Auto-read failed</Chip> {extraction.phase.message} — you can still add items manually.
             </p>
           )}
 

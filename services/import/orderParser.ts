@@ -1,7 +1,7 @@
 import { PDFParse, PasswordException, InvalidPDFException } from "pdf-parse";
 import { getOcrProvider } from "../ocr";
 import { EncryptedPdfError, CorruptPdfError } from "../ocr/pdfText";
-import { EMPTY_EXTRACTED_ORDER, type ExtractedOrder } from "../../modules/import/schema";
+import { EMPTY_EXTRACTED_ORDER, type ExtractedOrderInput } from "../../modules/import/schema";
 
 // Local (no cloud AI) auto-read of a PO/BOQ/quotation into the same shape
 // the prototype's Claude-vision extractOrder() produced. Two strategies:
@@ -41,7 +41,7 @@ function normalizeDateGuess(raw: string): string {
   return "";
 }
 
-function parseHeaderFields(rawText: string, result: ExtractedOrder): void {
+function parseHeaderFields(rawText: string, result: ExtractedOrderInput): void {
   const lines = rawText
     .split(/\r?\n/)
     .map((l) => l.trim())
@@ -112,7 +112,7 @@ function parseHeaderFields(rawText: string, result: ExtractedOrder): void {
 // Map one detected table row to an item. A usable row has at least one
 // meaty text cell and at least two numbers (qty, rate — where an extra
 // number that equals qty×rate is treated as the amount column and ignored).
-function tableRowToItem(row: string[]): ExtractedOrder["items"][number] | null {
+function tableRowToItem(row: string[]): NonNullable<ExtractedOrderInput["items"]>[number] | null {
   const cells = row.map((c) => c.trim()).filter((c) => c.length > 0);
   if (cells.length < 3) return null;
 
@@ -148,8 +148,8 @@ function tableRowToItem(row: string[]): ExtractedOrder["items"][number] | null {
   return { description, unit, qty: numbers[0]!, rate: numbers[1]! };
 }
 
-function itemsFromTables(tables: string[][][]): ExtractedOrder["items"] {
-  const items: ExtractedOrder["items"] = [];
+function itemsFromTables(tables: string[][][]): NonNullable<ExtractedOrderInput["items"]> {
+  const items: NonNullable<ExtractedOrderInput["items"]> = [];
   for (const table of tables) {
     for (const row of table) {
       const item = tableRowToItem(row);
@@ -194,9 +194,9 @@ interface ItemBlock {
 // never get mistaken for the start of a new item; blocks survive page
 // breaks and interleaved totals blocks (Zoho prints Sub Total/GST between
 // pages while items continue).
-function itemsFromSerialBlocks(rawText: string): ExtractedOrder["items"] {
+function itemsFromSerialBlocks(rawText: string): NonNullable<ExtractedOrderInput["items"]> {
   const lines = rawText.split(/\r?\n/).map((l) => l.trim());
-  const items: ExtractedOrder["items"] = [];
+  const items: NonNullable<ExtractedOrderInput["items"]> = [];
   let expected = 1;
   let current: ItemBlock | null = null;
 
@@ -262,8 +262,8 @@ function itemsFromSerialBlocks(rawText: string): ExtractedOrder["items"] {
 }
 
 // Fallback: a text line shaped like "<description> [unit] <qty> <rate> [amount]".
-function itemsFromLines(rawText: string): ExtractedOrder["items"] {
-  const items: ExtractedOrder["items"] = [];
+function itemsFromLines(rawText: string): NonNullable<ExtractedOrderInput["items"]> {
+  const items: NonNullable<ExtractedOrderInput["items"]> = [];
   const linePattern = /^(.{3,80}?)\s+(?:([A-Za-z]{1,5})\s+)?(\d+(?:\.\d+)?)\s+(\d+(?:[.,]\d+)?)(?:\s+\d+(?:[.,]\d+)?)?\s*$/;
   for (const line of rawText.split(/\r?\n/)) {
     const m = line.trim().match(linePattern);
@@ -279,11 +279,11 @@ function itemsFromLines(rawText: string): ExtractedOrder["items"] {
   return items;
 }
 
-export async function parseOrderFromBuffer(buffer: Buffer, mimeType: string): Promise<ExtractedOrder> {
-  const result: ExtractedOrder = structuredClone(EMPTY_EXTRACTED_ORDER);
+export async function parseOrderFromBuffer(buffer: Buffer, mimeType: string): Promise<ExtractedOrderInput> {
+  const result: ExtractedOrderInput = structuredClone(EMPTY_EXTRACTED_ORDER);
 
   let rawText = "";
-  let tableItems: ExtractedOrder["items"] = [];
+  let tableItems: NonNullable<ExtractedOrderInput["items"]> = [];
 
   if (mimeType === "application/pdf") {
     const parser = new PDFParse({ data: buffer });
