@@ -1,3 +1,4 @@
+import "./domPolyfill";
 import { PDFParse } from "pdf-parse";
 import { getOcrProvider } from "./index";
 

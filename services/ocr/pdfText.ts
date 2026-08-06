@@ -1,3 +1,4 @@
+import "./domPolyfill";
 import { PDFParse, PasswordException, InvalidPDFException } from "pdf-parse";
 
 export class EncryptedPdfError extends Error {}

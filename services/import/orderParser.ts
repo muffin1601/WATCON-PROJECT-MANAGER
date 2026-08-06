@@ -1,3 +1,4 @@
+import "../ocr/domPolyfill";
 import { PDFParse, PasswordException, InvalidPDFException } from "pdf-parse";
 import { getOcrProvider } from "../ocr";
 import { EncryptedPdfError, CorruptPdfError } from "../ocr/pdfText";

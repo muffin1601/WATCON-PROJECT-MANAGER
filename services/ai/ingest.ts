@@ -1,3 +1,4 @@
+import "../ocr/domPolyfill";
 import { PDFParse, PasswordException, InvalidPDFException } from "pdf-parse";
 import ExcelJS from "exceljs";
 import type { ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
