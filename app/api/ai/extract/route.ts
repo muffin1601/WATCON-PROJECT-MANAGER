@@ -32,6 +32,20 @@ const KINDS: Record<string, ExtractionJobKind> = {
   classify: ExtractionJobKind.CLASSIFY,
 };
 
+function startupErrorMessage(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+
+  if (/extraction_jobs|ExtractionJob|relation .*does not exist|table .*does not exist|does not exist/i.test(message)) {
+    return "AI extraction is not ready in production because the database migration for extraction jobs has not been applied. Run `npx prisma migrate deploy` against the production database, then try again.";
+  }
+
+  if (/DATABASE_URL|Can't reach database server|Timed out fetching a new connection|PrismaClientInitializationError/i.test(message)) {
+    return "Could not connect to the production database to start the document reader. Check DATABASE_URL and the Supabase connection, then try again.";
+  }
+
+  return "Could not start reading this document. Please try again, or enter the items manually.";
+}
+
 export async function POST(req: NextRequest) {
   // No key gate here: extraction runs a provider fallback chain
   // (Claude -> OpenAI -> Gemini -> local parser), so a missing AI key
@@ -73,14 +87,20 @@ export async function POST(req: NextRequest) {
   // available once `after()` runs.
   const buffer = Buffer.from(await file.arrayBuffer());
 
-  const job = await createExtractionJob({
-    kind,
-    fileName: file.name,
-    mimeType: file.type,
-    sizeBytes: file.size,
-    projectId,
-    documentId,
-  });
+  let job: Awaited<ReturnType<typeof createExtractionJob>>;
+  try {
+    job = await createExtractionJob({
+      kind,
+      fileName: file.name,
+      mimeType: file.type,
+      sizeBytes: file.size,
+      projectId,
+      documentId,
+    });
+  } catch (err) {
+    console.error("[ai] could not create extraction job", err);
+    return NextResponse.json({ error: startupErrorMessage(err) }, { status: 500 });
+  }
 
   after(async () => {
     // Each runner owns its own error handling and always lands the job in a

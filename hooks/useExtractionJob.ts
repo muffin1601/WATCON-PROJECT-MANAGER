@@ -34,6 +34,20 @@ export type ExtractionPhase =
 
 const POLL_INTERVAL_MS = 1500;
 
+async function readErrorMessage(res: Response, fallback: string): Promise<string> {
+  const contentType = res.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    return data.error || fallback;
+  }
+
+  const text = await res.text().catch(() => "");
+  if (text.trim()) {
+    return `${fallback} Server returned ${res.status} ${res.statusText || ""}.`;
+  }
+  return fallback;
+}
+
 export function useExtractionJob() {
   const [phase, setPhase] = useState<ExtractionPhase>({ status: "idle" });
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -68,8 +82,8 @@ export function useExtractionJob() {
       }
       try {
         const res = await fetch(`/api/ai/jobs/${jobId}`, { cache: "no-store" });
+        if (!res.ok) throw new Error(await readErrorMessage(res, "Lost track of this extraction."));
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || "Lost track of this extraction.");
 
         const job = data.job as ExtractionJobState;
         if (cancelled.current) {
@@ -139,8 +153,8 @@ export function useExtractionJob() {
         if (opts.documentId) fd.append("documentId", opts.documentId);
 
         const res = await fetch("/api/ai/extract", { method: "POST", body: fd });
+        if (!res.ok) throw new Error(await readErrorMessage(res, "Could not start reading this document."));
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || "Could not start reading this document.");
 
         return await new Promise<ExtractionJobState | null>((resolve) => {
           poll(data.jobId as string, resolve);
