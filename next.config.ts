@@ -12,22 +12,29 @@ const nextConfig: NextConfig = {
 
   // serverExternalPackages keeps these un-bundled, but Next's file tracer
   // still decides what actually ships with each serverless function by
-  // static analysis — and misses pdfjs-dist's worker script (loaded via a
-  // runtime path lookup, not a static import) and @napi-rs/canvas's native
-  // binary. Without this, both crash at runtime on Vercel with "Cannot find
-  // module" even though they're present in node_modules at build time.
+  // static analysis — and misses pdfjs-dist's worker script and
+  // tesseract.js's worker-script tree (both loaded via runtime path lookups
+  // / worker_threads, not static imports) and @napi-rs/canvas's native
+  // binary. Without this, all three crash at runtime on Vercel with "Cannot
+  // find module" even though they're present in node_modules at build time.
   outputFileTracingIncludes: {
     "/api/ai/extract": [
       "./node_modules/pdfjs-dist/legacy/build/**",
       "./node_modules/@napi-rs/canvas*/**",
+      "./node_modules/tesseract.js/src/**",
+      "./node_modules/tesseract.js-core/**",
     ],
     "/api/parse-order": [
       "./node_modules/pdfjs-dist/legacy/build/**",
       "./node_modules/@napi-rs/canvas*/**",
+      "./node_modules/tesseract.js/src/**",
+      "./node_modules/tesseract.js-core/**",
     ],
     "/api/documents/[documentId]/extract-text": [
       "./node_modules/pdfjs-dist/legacy/build/**",
       "./node_modules/@napi-rs/canvas*/**",
+      "./node_modules/tesseract.js/src/**",
+      "./node_modules/tesseract.js-core/**",
     ],
   },
 };
