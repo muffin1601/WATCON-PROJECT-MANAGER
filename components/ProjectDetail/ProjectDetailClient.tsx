@@ -62,7 +62,7 @@ export function ProjectDetailClient({
         </StatsGrid>
       </div>
       <Tabs tabs={TAB_DEFS as unknown as { key: TabKey; label: string }[]} active={tab} onChange={setTab} />
-      {tab === "overview" && <OverviewTab project={project} />}
+      {tab === "overview" && <OverviewTab project={project} gstRatePct={gstRatePct} />}
       {tab === "so" && <SalesOrderTab project={project} gstRatePct={gstRatePct} appPassword={appPassword} />}
       {tab === "challans" && <ChallansTab project={project} settings={settings} appPassword={appPassword} />}
       {tab === "transport" && <TransportTab project={project} />}

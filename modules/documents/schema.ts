@@ -5,6 +5,14 @@ export const DOCUMENT_KINDS = [
   "AMENDMENT_APPROVAL",
   "PAYMENT_PROOF",
   "TRANSPORT_BILL",
+  // Document-library categories (must stay in sync with prisma DocumentKind)
+  "PURCHASE_ORDER",
+  "BOQ",
+  "DRAWING",
+  "INVOICE",
+  "VENDOR_DOCUMENT",
+  "RUNNING_BILL_COPY",
+  "PHOTO",
   "OTHER",
 ] as const;
 export type DocumentKind = (typeof DOCUMENT_KINDS)[number];

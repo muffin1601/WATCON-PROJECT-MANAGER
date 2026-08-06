@@ -8,7 +8,7 @@ import {
   runClassification,
 } from "../../../../services/ai/jobs";
 import { isSupportedForAi } from "../../../../services/ai/ingest";
-import { isAiConfigured, MAX_AI_FILE_BYTES } from "../../../../services/ai/config";
+import { MAX_AI_FILE_BYTES } from "../../../../services/ai/config";
 
 /**
  * Starts an AI extraction and returns immediately with a job id.
@@ -33,13 +33,9 @@ const KINDS: Record<string, ExtractionJobKind> = {
 };
 
 export async function POST(req: NextRequest) {
-  if (!isAiConfigured()) {
-    return NextResponse.json(
-      { error: "AI document reading is not configured on this server (ANTHROPIC_API_KEY is missing)." },
-      { status: 503 }
-    );
-  }
-
+  // No key gate here: extraction runs a provider fallback chain
+  // (Claude -> OpenAI -> Gemini -> local parser), so a missing AI key
+  // degrades to the local engine instead of failing the upload.
   let form: FormData;
   try {
     form = await req.formData();

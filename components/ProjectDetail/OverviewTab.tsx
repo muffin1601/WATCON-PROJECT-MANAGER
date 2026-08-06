@@ -11,7 +11,7 @@ const APPROVAL_LABEL: Record<string, string> = {
 };
 
 // Ported from tabOverview(p, el) — financial summary + terms/approval card.
-export function OverviewTab({ project }: { project: ProjectViewModel }) {
+export function OverviewTab({ project, gstRatePct }: { project: ProjectViewModel; gstRatePct: number }) {
   const f = project.financials;
   return (
     <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
@@ -38,7 +38,7 @@ export function OverviewTab({ project }: { project: ProjectViewModel }) {
                   </Td>
                 </tr>
                 <tr>
-                  <Td>GST {project.termsGst === "EXTRA" ? "(extra)" : "(included in rates)"}</Td>
+                  <Td>GST {project.termsGst === "EXTRA" ? `@ ${gstRatePct}% (extra)` : "(included in rates)"}</Td>
                   <Td align="r" className="money">{inr(f.gst)}</Td>
                 </tr>
                 <tr>

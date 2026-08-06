@@ -113,7 +113,7 @@ export async function extractChallanDocument(
  * documentTotal by mangling every rate; outside it the values are left alone
  * and the discrepancy is reported instead.
  */
-function reconcileOrderTotals(result: AiOrderResult): AiOrderResult {
+export function reconcileOrderTotals(result: AiOrderResult): AiOrderResult {
   const items = result.extractedData.items;
   const computed = items.reduce((sum, it) => sum + it.qty * it.rate, 0);
   const stated = result.extractedData.documentTotal;

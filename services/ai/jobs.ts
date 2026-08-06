@@ -1,7 +1,7 @@
 import { ExtractionStage, ExtractionJobStatus, ExtractionJobKind, Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { ingestDocument, type IngestedDocument } from "./ingest";
-import { extractOrderDocument, extractChallanDocument, classifyDocument } from "./extract";
+import { extractOrderWithFallback, extractChallanWithFallback, classifyWithFallback } from "./providers";
 import { validateOrder, validateChallan } from "./validate";
 import { toExtractedOrder, toMappedChallan } from "./mapper";
 import { matchProject, matchChallanLines } from "./matching";
@@ -141,7 +141,7 @@ export async function runOrderExtraction(
     const ingested = await ingestForJob(jobId, buffer, mimeType, fileName);
 
     await setStage(jobId, ExtractionStage.EXTRACTING);
-    const { result, usage } = await extractOrderDocument(ingested, "PURCHASE_ORDER");
+    const { result, usage } = await extractOrderWithFallback(ingested, buffer, mimeType, fileName);
 
     // The document may not be what the upload context assumed. Rather than
     // extract a challan into a Sales Order draft, stop and say so — the user
@@ -197,7 +197,7 @@ export async function runChallanExtraction(
     const ingested = await ingestForJob(jobId, buffer, mimeType, fileName);
 
     await setStage(jobId, ExtractionStage.EXTRACTING);
-    const { result, usage } = await extractChallanDocument(ingested);
+    const { result, usage } = await extractChallanWithFallback(ingested, buffer, mimeType, fileName);
 
     await setStage(jobId, ExtractionStage.VALIDATING, {
       detectedType: result.documentType,
@@ -270,7 +270,7 @@ export async function runClassification(
   try {
     const ingested = await ingestForJob(jobId, buffer, mimeType, fileName);
     await setStage(jobId, ExtractionStage.EXTRACTING);
-    const { result, usage } = await classifyDocument(ingested);
+    const { result, usage } = await classifyWithFallback(ingested, fileName);
 
     await prisma.extractionJob.update({
       where: { id: jobId },
