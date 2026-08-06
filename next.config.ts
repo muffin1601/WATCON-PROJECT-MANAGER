@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
   //  "Setting up fake worker failed: Cannot find module '...pdf.worker.mjs'").
   // serverExternalPackages tells Next.js to leave them un-bundled on the
   // server so Node's normal module resolution handles them.
-  serverExternalPackages: ["tesseract.js", "pdf-parse"],
+  serverExternalPackages: ["tesseract.js", "pdf-parse", "@napi-rs/canvas"],
 };
 
 export default nextConfig;
