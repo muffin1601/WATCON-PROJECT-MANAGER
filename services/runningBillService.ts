@@ -6,6 +6,7 @@ import {
   discountTotal,
   dispatchedQty,
   extraQtyOf,
+  transportTotal,
   type FinProject,
 } from "./financials";
 import { ValidationError } from "./challanService";

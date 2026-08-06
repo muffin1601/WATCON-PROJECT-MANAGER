@@ -39,10 +39,19 @@ export interface FinDiscount {
 
 export interface FinAmendment {
   valueChange: number;
+  // true = change already reflected in Sales Order item qty/rates (created
+  // by "Amend sales order") — skipped in amendTotal() to avoid double count.
+  applied?: boolean;
+}
+
+export interface FinTransport {
+  date: string; // ISO date
+  amount: number;
 }
 
 export interface FinTerms {
   gst: "included" | "extra";
+  transport?: "included" | "extra";
 }
 
 export interface FinProject {
@@ -50,6 +59,7 @@ export interface FinProject {
   challans: FinChallan[];
   discounts: FinDiscount[];
   amendments: FinAmendment[];
+  transports?: FinTransport[];
   terms: FinTerms;
 }
 
@@ -57,8 +67,19 @@ export function orderBase(p: Pick<FinProject, "items">): number {
   return p.items.reduce((s, i) => s + (Number(i.qty) || 0) * (Number(i.rate) || 0), 0);
 }
 
+// `applied` amendments are already reflected in item qty/rates — counting
+// them again would double the change (prototype: `a.applied ? 0 : value`).
 export function amendTotal(p: Pick<FinProject, "amendments">): number {
-  return p.amendments.reduce((s, a) => s + (Number(a.valueChange) || 0), 0);
+  return p.amendments.reduce((s, a) => s + (a.applied ? 0 : Number(a.valueChange) || 0), 0);
+}
+
+// Ported from transportTotal(p, uptoDate) — sum of transport bills, optionally
+// only those dated on or before `uptoDate`.
+export function transportTotal(p: Pick<FinProject, "transports">, uptoDate?: string): number {
+  return (p.transports || []).reduce((t, x) => {
+    if (uptoDate && x.date > uptoDate) return t;
+    return t + (Number(x.amount) || 0);
+  }, 0);
 }
 
 export function discountTotal(p: Pick<FinProject, "discounts">): number {
@@ -200,10 +221,13 @@ export function siteAccountFigures(p: FinProject, bills: { netPayable: number }[
   const disc = discountTotal(p);
   const taxable = Math.max(basicDispatched - disc, 0);
   const gst = p.terms.gst === "extra" ? taxable * ((Number(gstRatePct) || 18) / 100) : 0;
-  const payableToDate = taxable + gst;
+  // Transport at actuals is recoverable from the client only when the
+  // project's transport terms are "extra" (prototype's siteAccountFigures).
+  const transport = p.terms.transport === "extra" ? transportTotal(p) : 0;
+  const payableToDate = taxable + gst + transport;
   const billed = billedTotal(bills);
   const unbilled = Math.max(payableToDate - billed, 0);
   const received = paidTotal(payments);
   const balance = payableToDate - received;
-  return { basicDispatched, disc, gst, payableToDate, billed, unbilled, received, balance };
+  return { basicDispatched, disc, gst, transport, payableToDate, billed, unbilled, received, balance };
 }

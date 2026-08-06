@@ -60,6 +60,7 @@ enum DocumentKind {
   CHALLAN_COPY
   AMENDMENT_APPROVAL
   PAYMENT_PROOF
+  TRANSPORT_BILL
   // General-purpose project document library categories (Document Management System)
   PURCHASE_ORDER
   BOQ
@@ -191,7 +192,9 @@ model Project {
   updatedAt DateTime @updatedAt
 
   items          PoItem[]
+  orders         ProjectOrder[]
   challans       Challan[]
+  transports     Transport[]
   bills          Bill[]
   payments       Payment[]
   discounts      Discount[]
@@ -213,10 +216,21 @@ model PoItem {
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
+  // Which additional order (PO/BOQ) this line belongs to; null = the
+  // project's original order. Mirrors `it.orderId` in the prototype's tabSO().
+  orderId String?
+  order   ProjectOrder? @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
   description String
+  // Brand/make of the item — prototype's `it.make` column, also the second
+  // half of the Items & Stocks master key (item + make = one stock line).
+  make        String  @default("")
   unit        String  @default("Nos")
   qty         Decimal @db.Decimal(14, 3)
   rate        Decimal @db.Decimal(14, 2)
+  // When a consolidated BOQ line is bifurcated via splitItemModal(), each
+  // sub-item records the ORIGINAL description here ("part of: X" in the UI).
+  splitFrom   String?
 
   sortOrder Int @default(0)
 
@@ -227,7 +241,29 @@ model PoItem {
   updatedAt DateTime @updatedAt
 
   @@index([projectId])
+  @@index([orderId])
   @@map("po_items")
+}
+
+// Additional client orders added to a project after creation (prototype's
+// `p.orders` from addOrderModal) — the original order lives on Project itself
+// (poNumber/poDate/order copy document), additional ones each get a row here
+// and their Sales Order items point at them via PoItem.orderId.
+model ProjectOrder {
+  id        String  @id @default(uuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  ref  String // order reference / PO number
+  date DateTime?
+
+  createdAt DateTime @default(now())
+
+  items     PoItem[]
+  documents Document[]
+
+  @@index([projectId])
+  @@map("project_orders")
 }
 
 // ---------- Purchase Orders (vendor-facing procurement, distinct from the
@@ -309,10 +345,38 @@ model Challan {
   items      ChallanItem[]
   extraItems ChallanExtraItem[]
   documents  Document[]
+  transports Transport[]
 
   @@unique([projectId, no])
   @@index([projectId, date])
   @@map("challans")
+}
+
+// ---------- Transport bills (prototype's p.transports / tabTransport) ----------
+// When project termsTransport = EXTRA these are recoverable from the client
+// (added to running bills & site account at actuals); when INCLUDED they are
+// recorded as internal cost only.
+model Transport {
+  id        String  @id @default(uuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  date        DateTime
+  amount      Decimal  @db.Decimal(14, 2)
+  transporter String?
+  ref         String? // bill / LR number
+  vehicle     String?
+
+  challanId String?
+  challan   Challan? @relation(fields: [challanId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  documents Document[]
+
+  @@index([projectId, date])
+  @@map("transports")
 }
 
 // Qty dispatched against a Sales Order item (qty = within SO qty, extraQty = beyond BOQ)
@@ -360,6 +424,9 @@ model Bill {
   discountApplied Decimal @default(0) @db.Decimal(14, 2) // discount newly applied in this bill
   discountCum     Decimal @default(0) @db.Decimal(14, 2) // cumulative discount to date
   gst             Decimal @default(0) @db.Decimal(14, 2)
+  // Transport at actuals up to the bill date, when termsTransport = EXTRA
+  // (prototype's b.transportCum). 0 when transport is included in rates.
+  transportCum    Decimal @default(0) @db.Decimal(14, 2)
   grossToDate     Decimal @db.Decimal(14, 2)
   priorBilled     Decimal @db.Decimal(14, 2)
   netPayable      Decimal @db.Decimal(14, 2)
@@ -436,6 +503,10 @@ model Amendment {
   date        DateTime
   description String
   valueChange Decimal  @db.Decimal(14, 2) // signed: negative = reduction
+  // true when the change is ALREADY reflected in the Sales Order item
+  // qty/rates (created by "Amend sales order") — excluded from amendTotal()
+  // so the value is never counted twice. Prototype's `a.applied` flag.
+  applied     Boolean  @default(false)
 
   createdAt DateTime @default(now())
 
@@ -443,6 +514,43 @@ model Amendment {
 
   @@index([projectId])
   @@map("amendments")
+}
+
+// ---------- Items & Stocks (prototype's state.itemsMaster / renderStocks) ----------
+// One row per item PER MAKE per unit. Rows are auto-created the moment an
+// item appears on any project's Sales Order (syncItemsMaster) and can also
+// be added manually. Required/delivered/pending are computed across all
+// projects at read time; only inward stock entries are stored.
+model ItemMaster {
+  id   String @id @default(uuid())
+  name String
+  make String @default("")
+  unit String @default("Nos")
+  // normalized "name|make|unit" (lowercased, whitespace collapsed) — the
+  // prototype's normKey(), enforced unique at the DB level.
+  normKey String @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  entries StockEntry[]
+
+  @@map("item_masters")
+}
+
+model StockEntry {
+  id           String     @id @default(uuid())
+  itemMasterId String
+  itemMaster   ItemMaster @relation(fields: [itemMasterId], references: [id], onDelete: Cascade)
+
+  date DateTime
+  qty  Decimal  @db.Decimal(14, 3) // negative = outward adjustment
+  note String?
+
+  createdAt DateTime @default(now())
+
+  @@index([itemMasterId, date])
+  @@map("stock_entries")
 }
 
 // ---------- Documents (Supabase Storage metadata) & OCR ----------
@@ -461,6 +569,10 @@ model Document {
   amendment       Amendment?     @relation(fields: [amendmentId], references: [id], onDelete: Cascade)
   purchaseOrderId String?
   purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  transportId     String?
+  transport       Transport?     @relation(fields: [transportId], references: [id], onDelete: Cascade)
+  projectOrderId  String?
+  projectOrder    ProjectOrder?  @relation(fields: [projectOrderId], references: [id], onDelete: Cascade)
 
   fileName    String
   mimeType    String

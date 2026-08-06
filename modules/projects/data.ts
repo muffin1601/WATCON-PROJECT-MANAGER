@@ -22,7 +22,9 @@ export const PROJECT_TYPE_LABEL: Record<string, string> = {
 
 const projectWithFinancials = {
   items: true,
+  orders: { include: { documents: true } },
   challans: { include: { items: true, extraItems: true, documents: true } },
+  transports: { include: { documents: true } },
   discounts: true,
   amendments: { include: { documents: true } },
   bills: { include: { lines: true } },
@@ -63,8 +65,10 @@ export function toFinProject(p: {
     extraItems: { description: string; unit: string; qty: unknown; rate: unknown }[];
   }[];
   discounts: { amount: unknown }[];
-  amendments: { valueChange: unknown }[];
+  amendments: { valueChange: unknown; applied?: boolean }[];
+  transports?: { date: Date; amount: unknown }[];
   termsGst: string;
+  termsTransport?: string;
 }): FinProject {
   return {
     items: p.items.map((i) => ({
@@ -91,7 +95,11 @@ export function toFinProject(p: {
       })),
     })),
     discounts: p.discounts.map((d) => ({ amount: toNum(d.amount as never) })),
-    amendments: p.amendments.map((a) => ({ valueChange: toNum(a.valueChange as never) })),
-    terms: { gst: p.termsGst === "EXTRA" ? "extra" : "included" },
+    amendments: p.amendments.map((a) => ({ valueChange: toNum(a.valueChange as never), applied: a.applied ?? false })),
+    transports: (p.transports || []).map((t) => ({ date: t.date.toISOString().slice(0, 10), amount: toNum(t.amount as never) })),
+    terms: {
+      gst: p.termsGst === "EXTRA" ? "extra" : "included",
+      transport: p.termsTransport === "INCLUDED" ? "included" : "extra",
+    },
   };
 }

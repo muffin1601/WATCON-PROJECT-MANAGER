@@ -14,6 +14,7 @@ import {
   orderBase,
   paidTotal,
   siteAccountFigures,
+  transportTotal,
 } from "../../services/financials";
 import { getProjectDetail, toFinProject } from "./data";
 
@@ -82,7 +83,10 @@ export function buildProjectViewModel(p: ProjectDetail, gstRatePct: number) {
         const bal = balanceByItem.get(i.id);
         return {
           id: i.id,
+          orderId: i.orderId ?? null,
           description: i.description,
+          make: i.make ?? "",
+          splitFrom: i.splitFrom ?? null,
           unit: i.unit,
           qty: toNum(i.qty),
           rate: toNum(i.rate),
@@ -92,6 +96,30 @@ export function buildProjectViewModel(p: ProjectDetail, gstRatePct: number) {
           extraUnlocked: bal?.extraUnlocked ?? false,
         };
       }),
+
+    orders: (p.orders || [])
+      .slice()
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .map((o) => ({
+        id: o.id,
+        ref: o.ref,
+        date: o.date ? o.date.toISOString().slice(0, 10) : null,
+        attachments: o.documents.map(mapDoc),
+      })),
+
+    transports: (p.transports || [])
+      .slice()
+      .sort((a, b) => b.date.getTime() - a.date.getTime())
+      .map((t) => ({
+        id: t.id,
+        date: t.date.toISOString().slice(0, 10),
+        amount: toNum(t.amount),
+        transporter: t.transporter,
+        ref: t.ref,
+        vehicle: t.vehicle,
+        challanId: t.challanId,
+        attachments: t.documents.map(mapDoc),
+      })),
 
     payments: p.payments
       .slice()
@@ -140,6 +168,7 @@ export function buildProjectViewModel(p: ProjectDetail, gstRatePct: number) {
         discountApplied: toNum(b.discountApplied),
         discountCum: toNum(b.discountCum),
         gst: toNum(b.gst),
+        transportCum: toNum(b.transportCum),
         grossToDate: toNum(b.grossToDate),
         priorBilled: toNum(b.priorBilled),
         netPayable: toNum(b.netPayable),
@@ -168,6 +197,7 @@ export function buildProjectViewModel(p: ProjectDetail, gstRatePct: number) {
         date: a.date.toISOString().slice(0, 10),
         description: a.description,
         valueChange: toNum(a.valueChange),
+        applied: a.applied ?? false,
         attachments: a.documents.map(mapDoc),
       })),
 
@@ -194,6 +224,7 @@ export function buildProjectViewModel(p: ProjectDetail, gstRatePct: number) {
       gst,
       contractValue: cv,
       dispatchedValue: dv,
+      transportTotal: transportTotal(fin),
       billedTotal: billed,
       paidTotal: paid,
       pending: dv - paid,
