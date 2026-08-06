@@ -4,6 +4,6 @@ import styles from "./Chip.module.css";
 export type ChipTone = "teal" | "gold" | "green" | "red" | "grey";
 
 // Ported from .chip .teal/.gold/.green/.red/.grey
-export function Chip({ tone = "grey", children }: { tone?: ChipTone; children: ReactNode }) {
-  return <span className={[styles.chip, styles[tone]].join(" ")}>{children}</span>;
+export function Chip({ tone = "grey", title, children }: { tone?: ChipTone; title?: string; children: ReactNode }) {
+  return <span className={[styles.chip, styles[tone]].join(" ")} title={title}>{children}</span>;
 }

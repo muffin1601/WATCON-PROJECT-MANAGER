@@ -135,7 +135,16 @@ export function ProjectForm({ gstRatePct }: { gstRatePct: number }) {
     if (parsed.terms.transport === "included") setValue("termsTransport", "INCLUDED");
     if (parsed.terms.payment && !getValues("paymentTerms")) setValue("paymentTerms", parsed.terms.payment);
     if (parsed.items.length > 0) {
-      replace(parsed.items.map((it) => ({ description: it.description, unit: it.unit, qty: it.qty, rate: it.rate })));
+      replace(
+        parsed.items.map((it) => ({
+          description: it.description,
+          make: it.make || "",
+          unit: it.unit,
+          qty: it.qty,
+          rate: it.rate,
+          orderId: null,
+        }))
+      );
     }
 
     setParsedDiscount(
@@ -409,7 +418,8 @@ export function ProjectForm({ gstRatePct }: { gstRatePct: number }) {
               <Table>
                 <thead>
                   <tr>
-                    <Th style={{ width: "44%" }}>Description</Th>
+                    <Th style={{ width: "38%" }}>Description</Th>
+                    <Th>Make</Th>
                     <Th>Unit</Th>
                     <Th align="r">Qty</Th>
                     <Th align="r">Rate</Th>
@@ -422,6 +432,9 @@ export function ProjectForm({ gstRatePct }: { gstRatePct: number }) {
                     <tr key={f.id}>
                       <Td>
                         <TextInput {...register(`items.${i}.description` as const)} />
+                      </Td>
+                      <Td>
+                        <TextInput style={{ width: 88 }} placeholder="Make" {...register(`items.${i}.make` as const)} />
                       </Td>
                       <Td>
                         <TextInput className={styles.unitCell} {...register(`items.${i}.unit` as const)} />
@@ -455,7 +468,7 @@ export function ProjectForm({ gstRatePct }: { gstRatePct: number }) {
                 </tbody>
                 <tfoot>
                   <tr>
-                    <Td colSpan={4} align="r">
+                    <Td colSpan={5} align="r">
                       Basic value
                     </Td>
                     <Td align="r" className="money">
@@ -474,7 +487,7 @@ export function ProjectForm({ gstRatePct }: { gstRatePct: number }) {
             </Button>
             <Button
               type="button"
-              onClick={() => append({ description: "", unit: "Nos", qty: 1, rate: 0 })}
+              onClick={() => append({ description: "", make: "", unit: "Nos", qty: 1, rate: 0, orderId: null })}
             >
               + Add sales order item manually
             </Button>

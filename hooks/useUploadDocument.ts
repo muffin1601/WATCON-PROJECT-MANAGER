@@ -11,6 +11,8 @@ export interface UploadDocumentArgs {
   paymentId?: string;
   amendmentId?: string;
   purchaseOrderId?: string;
+  transportId?: string;
+  projectOrderId?: string;
   allowDuplicate?: boolean; // Part 18 — bypasses the same-project checksum duplicate check
   replaceDocumentId?: string; // Part 13 — uploads as the next version of an existing document
 }
@@ -37,6 +39,8 @@ export function useUploadDocument() {
       if (input.paymentId) fd.append("paymentId", input.paymentId);
       if (input.amendmentId) fd.append("amendmentId", input.amendmentId);
       if (input.purchaseOrderId) fd.append("purchaseOrderId", input.purchaseOrderId);
+      if (input.transportId) fd.append("transportId", input.transportId);
+      if (input.projectOrderId) fd.append("projectOrderId", input.projectOrderId);
       if (input.allowDuplicate) fd.append("allowDuplicate", "true");
       if (input.replaceDocumentId) fd.append("replaceDocumentId", input.replaceDocumentId);
 

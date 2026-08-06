@@ -20,6 +20,8 @@ export interface UploadDocumentInput {
   paymentId?: string;
   amendmentId?: string;
   purchaseOrderId?: string;
+  transportId?: string;
+  projectOrderId?: string;
   // Part 18 (duplicate detection): if a document with the same content
   // checksum already exists on this project, uploadDocument() throws
   // DuplicateDocumentError instead of uploading — set true to upload anyway.
@@ -69,6 +71,8 @@ export async function uploadDocument(input: UploadDocumentInput) {
   await assertExists("payment", input.paymentId, (id) => prisma.payment.findUniqueOrThrow({ where: { id } }));
   await assertExists("amendment", input.amendmentId, (id) => prisma.amendment.findUniqueOrThrow({ where: { id } }));
   await assertExists("purchase order", input.purchaseOrderId, (id) => prisma.purchaseOrder.findUniqueOrThrow({ where: { id } }));
+  await assertExists("transport bill", input.transportId, (id) => prisma.transport.findUniqueOrThrow({ where: { id } }));
+  await assertExists("order", input.projectOrderId, (id) => prisma.projectOrder.findUniqueOrThrow({ where: { id } }));
 
   const checksum = createHash("sha256").update(input.file.buffer).digest("hex");
 
@@ -114,6 +118,8 @@ export async function uploadDocument(input: UploadDocumentInput) {
         paymentId: input.paymentId ?? null,
         amendmentId: input.amendmentId ?? null,
         purchaseOrderId: input.purchaseOrderId ?? null,
+        transportId: input.transportId ?? null,
+        projectOrderId: input.projectOrderId ?? null,
         fileName: input.file.name,
         mimeType: input.file.type,
         sizeBytes: input.file.size,

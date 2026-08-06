@@ -34,6 +34,7 @@ export async function generateRunningBill(projectId: string, input: GenerateBill
         challans: { include: { items: true, extraItems: true } },
         discounts: true,
         bills: true,
+        transports: true,
       },
     }),
     prisma.setting.findUnique({ where: { key: "default" } }),
@@ -42,7 +43,14 @@ export async function generateRunningBill(projectId: string, input: GenerateBill
   if (!settings) throw new ValidationError("Settings not configured");
 
   const fin: FinProject = {
-    items: project.items.map((i) => ({ id: i.id, description: i.description, unit: i.unit, qty: toNum(i.qty), rate: toNum(i.rate) })),
+    // Prototype's soDesc(it): split sub-items are billed as "X (part of Y)".
+    items: project.items.map((i) => ({
+      id: i.id,
+      description: i.description + (i.splitFrom ? ` (part of ${i.splitFrom})` : ""),
+      unit: i.unit,
+      qty: toNum(i.qty),
+      rate: toNum(i.rate),
+    })),
     challans: project.challans.map((c) => ({
       id: c.id,
       date: c.date.toISOString().slice(0, 10),
@@ -52,7 +60,11 @@ export async function generateRunningBill(projectId: string, input: GenerateBill
     })),
     discounts: project.discounts.map((d) => ({ amount: toNum(d.amount) })),
     amendments: [],
-    terms: { gst: project.termsGst === "EXTRA" ? "extra" : "included" },
+    transports: project.transports.map((t) => ({ date: t.date.toISOString().slice(0, 10), amount: toNum(t.amount) })),
+    terms: {
+      gst: project.termsGst === "EXTRA" ? "extra" : "included",
+      transport: project.termsTransport === "INCLUDED" ? "included" : "extra",
+    },
   };
 
   const upto = input.uptoDate;
@@ -103,7 +115,10 @@ export async function generateRunningBill(projectId: string, input: GenerateBill
   const discNow = Math.max(discCum - priorDisc, 0);
   const gstRatePct = toNum(settings.gstRatePct);
   const gst = fin.terms.gst === "extra" ? (grossBasic - discCum) * (gstRatePct / 100) : 0;
-  const grossToDate = grossBasic - discCum + gst;
+  // Transport at actuals up to the bill date — added to the client bill only
+  // when the project's transport terms are "extra" (prototype's generateBill).
+  const transportCum = fin.terms.transport === "extra" ? transportTotal(fin, upto) : 0;
+  const grossToDate = grossBasic - discCum + gst + transportCum;
   const priorBilled = project.bills.reduce((s, b) => s + toNum(b.netPayable), 0);
   const netPayable = grossToDate - priorBilled;
 
@@ -132,6 +147,7 @@ export async function generateRunningBill(projectId: string, input: GenerateBill
           discountApplied: discNow,
           discountCum: discCum,
           gst,
+          transportCum,
           grossToDate,
           priorBilled,
           netPayable,

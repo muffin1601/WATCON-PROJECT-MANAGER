@@ -30,7 +30,7 @@ export function ChallanDoc({
   settings: CompanySettings;
   project: ChallanDocProject;
   challan: ChallanDocChallan;
-  soItems: { id: string; description: string; unit: string }[];
+  soItems: { id: string; description: string; unit: string; splitFrom?: string | null }[];
   dfmt: (d: string) => string;
 }) {
   let sNo = 1;
@@ -42,7 +42,7 @@ export function ChallanDoc({
     if (!it) return;
     const q = (ci.qty || 0) + (ci.extraQty || 0);
     totalQty += q;
-    rows.push({ sNo: sNo++, description: it.description, unit: it.unit, qty: q });
+    rows.push({ sNo: sNo++, description: it.description + (it.splitFrom ? ` (part of ${it.splitFrom})` : ""), unit: it.unit, qty: q });
   });
   challan.extraItems.forEach((x) => {
     totalQty += x.qty;

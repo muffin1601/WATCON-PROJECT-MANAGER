@@ -4,6 +4,7 @@ export const DOCUMENT_KINDS = [
   "CHALLAN_COPY",
   "AMENDMENT_APPROVAL",
   "PAYMENT_PROOF",
+  "TRANSPORT_BILL",
   "OTHER",
 ] as const;
 export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
@@ -17,6 +18,8 @@ export const ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+  "text/csv",
   "application/zip",
   "application/x-zip-compressed",
 ]);

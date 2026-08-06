@@ -11,6 +11,7 @@ import { TableWrap, Table, Th, Td } from "../Table/Table";
 import { apiFetch } from "../../lib/apiClient";
 import { todayIso } from "../../lib/format";
 import { useToast } from "../Toast/ToastProvider";
+import { useUploadDocument } from "../../hooks/useUploadDocument";
 import { IssueChallanInput, ChallanExtraItemInput } from "../../modules/challans/schema";
 import type { ProjectViewModel } from "../../modules/projects/viewModel";
 
@@ -48,6 +49,14 @@ export function IssueChallanModal({
   const [vehicle, setVehicle] = useState(editing?.vehicle ?? "");
   const [driver, setDriver] = useState(editing?.driver ?? "");
   const [remarks, setRemarks] = useState(editing?.remarks ?? "");
+  // Transport bill for this dispatch (prototype's ch_trt/ch_trr/ch_tra/ch_trf
+  // fields) — recorded only when issuing a NEW challan, exactly as the
+  // prototype (edits go through the Transport tab instead).
+  const [trTransporter, setTrTransporter] = useState("");
+  const [trRef, setTrRef] = useState("");
+  const [trAmount, setTrAmount] = useState<number>(0);
+  const [trFile, setTrFile] = useState<File | null>(null);
+  const uploadDoc = useUploadDocument();
   const [extraItems, setExtraItems] = useState<ChallanExtraItemInput[]>(
     editing?.extraItems.map((x) => ({ description: x.description, unit: x.unit, qty: x.qty, rate: x.rate })) ?? []
   );
@@ -89,7 +98,7 @@ export function IssueChallanModal({
   const removeCustomRow = (i: number) => setExtraItems((prev) => prev.filter((_, idx) => idx !== i));
 
   const mutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const input: IssueChallanInput = {
         date,
         vehicle,
@@ -101,7 +110,28 @@ export function IssueChallanModal({
         extraItems: extraItems.filter((x) => x.description.trim() && x.qty > 0),
       };
       const url = editingId ? `/api/challans/${editingId}` : `/api/projects/${project.id}/challans`;
-      return apiFetch(url, { method: editingId ? "PATCH" : "POST", body: JSON.stringify({ source: "ISSUED_HERE", ...input }) });
+      const res = await apiFetch<{ challan?: { id: string } }>(url, {
+        method: editingId ? "PATCH" : "POST",
+        body: JSON.stringify({ source: "ISSUED_HERE", ...input }),
+      });
+      // Optional transport bill recorded against this dispatch (create only).
+      if (!editingId && trAmount > 0 && res.challan) {
+        const tr = await apiFetch<{ transport: { id: string } }>(`/api/projects/${project.id}/transports`, {
+          method: "POST",
+          body: JSON.stringify({
+            date,
+            amount: trAmount,
+            transporter: trTransporter.trim(),
+            ref: trRef.trim(),
+            vehicle,
+            challanId: res.challan.id,
+          }),
+        });
+        if (trFile) {
+          await uploadDoc.mutateAsync({ file: trFile, kind: "TRANSPORT_BILL", projectId: project.id, transportId: tr.transport.id });
+        }
+      }
+      return res;
     },
     onSuccess: () => {
       router.refresh();
@@ -230,6 +260,31 @@ export function IssueChallanModal({
       <Button size="sm" type="button" onClick={addCustomRow}>
         + Add item not in sales order
       </Button>
+
+      {!editingId && (
+        <>
+          <h4 style={{ fontSize: 13, margin: "16px 0 6px" }}>Transport bill for this dispatch (optional)</h4>
+          <FormRow>
+            <FormField label="Transporter">
+              <TextInput value={trTransporter} onChange={(e) => setTrTransporter(e.target.value)} />
+            </FormField>
+            <FormField label="Bill / LR number">
+              <TextInput value={trRef} onChange={(e) => setTrRef(e.target.value)} />
+            </FormField>
+            <FormField label="Amount (₹)">
+              <TextInput type="number" min={0} value={trAmount || ""} onChange={(e) => setTrAmount(Number(e.target.value) || 0)} />
+            </FormField>
+            <FormField label="Bill copy">
+              <input type="file" accept="application/pdf,image/*" onChange={(e) => setTrFile(e.target.files?.[0] ?? null)} />
+            </FormField>
+          </FormRow>
+          <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: -6 }}>
+            {project.termsTransport === "EXTRA"
+              ? "Transport is EXTRA on this project — this bill will be added to the client’s running bill at actuals."
+              : "Transport is INCLUDED in rates on this project — this bill is recorded as internal cost only."}
+          </p>
+        </>
+      )}
     </Modal>
   );
 }

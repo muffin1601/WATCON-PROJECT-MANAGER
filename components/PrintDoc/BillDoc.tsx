@@ -29,6 +29,7 @@ export interface BillDocBill {
   discountCum: number;
   discountApplied: number;
   gst: number;
+  transportCum: number;
   grossToDate: number;
   priorBilled: number;
   netPayable: number;
@@ -177,6 +178,14 @@ export function BillDoc({
                 GST included in rates (as per terms)
               </td>
               <td className={styles.r}>—</td>
+            </tr>
+          )}
+          {bill.transportCum > 0 && (
+            <tr>
+              <td colSpan={7} className={styles.r}>
+                Add: Transport at actuals (bills up to {dfmt(bill.date)}, as per terms — extra)
+              </td>
+              <td className={styles.r}>{n(bill.transportCum)}</td>
             </tr>
           )}
           <tr>

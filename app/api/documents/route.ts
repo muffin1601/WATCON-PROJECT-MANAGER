@@ -22,6 +22,8 @@ export async function POST(req: NextRequest) {
       paymentId: strOrUndef(form.get("paymentId")),
       amendmentId: strOrUndef(form.get("amendmentId")),
       purchaseOrderId: strOrUndef(form.get("purchaseOrderId")),
+      transportId: strOrUndef(form.get("transportId")),
+      projectOrderId: strOrUndef(form.get("projectOrderId")),
       allowDuplicate: form.get("allowDuplicate") === "true",
       replaceDocumentId: strOrUndef(form.get("replaceDocumentId")),
     });

@@ -13,6 +13,7 @@ export interface SiteAccountFigures {
   basicDispatched: number;
   disc: number;
   gst: number;
+  transport: number;
   payableToDate: number;
   billed: number;
   unbilled: number;
@@ -31,6 +32,7 @@ export function SiteAccountDoc({
   figures,
   gstRatePct,
   termsGstExtra,
+  termsTransportExtra,
   dfmt,
   today,
 }: {
@@ -40,6 +42,7 @@ export function SiteAccountDoc({
   figures: SiteAccountFigures;
   gstRatePct: number;
   termsGstExtra: boolean;
+  termsTransportExtra: boolean;
   dfmt: (d: string) => string;
   today: string;
 }) {
@@ -125,6 +128,12 @@ export function SiteAccountDoc({
             <td>{termsGstExtra ? `Add: GST @ ${gstRatePct}% (extra as per terms)` : "GST included in rates (as per terms)"}</td>
             <td className={styles.r}>{figures.gst ? n(figures.gst) : "—"}</td>
           </tr>
+          {termsTransportExtra && (
+            <tr>
+              <td>Add: transport bills at actuals (extra as per terms)</td>
+              <td className={styles.r}>{n(figures.transport)}</td>
+            </tr>
+          )}
           <tr>
             <td>
               <b>Billable to date (challan basis)</b>

@@ -32,6 +32,7 @@ export function SiteAccountsTab({
       figures={f}
       gstRatePct={gstRatePct}
       termsGstExtra={project.termsGst === "EXTRA"}
+      termsTransportExtra={project.termsTransport === "EXTRA"}
       dfmt={dfmt}
       today={todayIso()}
     />
@@ -119,6 +120,12 @@ export function SiteAccountsTab({
                   <Td>{project.termsGst === "EXTRA" ? `Add: GST @ ${gstRatePct}% (extra as per terms)` : "GST included in rates (as per terms)"}</Td>
                   <Td align="r" className="money">{f.gst ? inr(f.gst) : "—"}</Td>
                 </tr>
+                {project.termsTransport === "EXTRA" && (
+                  <tr>
+                    <Td>Add: transport bills at actuals (extra as per terms)</Td>
+                    <Td align="r" className="money">{inr(f.transport)}</Td>
+                  </tr>
+                )}
                 <tr>
                   <Td><b>Billable to date (challan basis)</b></Td>
                   <Td align="r" className="money"><b>{inr(f.payableToDate)}</b></Td>

@@ -9,6 +9,7 @@ import { OverviewTab } from "./OverviewTab";
 import { SalesOrderTab } from "./SalesOrderTab";
 import { PaymentsTab } from "./PaymentsTab";
 import { ChallansTab } from "./ChallansTab";
+import { TransportTab } from "./TransportTab";
 import { BillsTab } from "./BillsTab";
 import { SiteAccountsTab } from "./SiteAccountsTab";
 import { DiscountsAmendmentsTab } from "./DiscountsAmendmentsTab";
@@ -18,12 +19,13 @@ import type { CompanySettings } from "../PrintDoc/DocHead";
 import type { ProjectViewModel } from "../../modules/projects/viewModel";
 
 // Ported from renderProject() — same tab order as the prototype: Overview,
-// Sales Order, Challans, Running Bills, Payments, Site Accounts,
+// Sales Order, Challans, Transport, Running Bills, Payments, Site Accounts,
 // Discounts & Amendments, Documents.
 const TAB_DEFS = [
   { key: "overview", label: "Overview" },
   { key: "so", label: "Sales Order" },
   { key: "challans", label: "Challans" },
+  { key: "transport", label: "Transport" },
   { key: "bills", label: "Running Bills" },
   { key: "payments", label: "Payments" },
   { key: "accounts", label: "Site Accounts" },
@@ -61,8 +63,9 @@ export function ProjectDetailClient({
       </div>
       <Tabs tabs={TAB_DEFS as unknown as { key: TabKey; label: string }[]} active={tab} onChange={setTab} />
       {tab === "overview" && <OverviewTab project={project} />}
-      {tab === "so" && <SalesOrderTab project={project} />}
+      {tab === "so" && <SalesOrderTab project={project} gstRatePct={gstRatePct} appPassword={appPassword} />}
       {tab === "challans" && <ChallansTab project={project} settings={settings} appPassword={appPassword} />}
+      {tab === "transport" && <TransportTab project={project} />}
       {tab === "bills" && <BillsTab project={project} settings={settings} gstRatePct={gstRatePct} />}
       {tab === "payments" && <PaymentsTab project={project} />}
       {tab === "accounts" && <SiteAccountsTab project={project} settings={settings} gstRatePct={gstRatePct} />}

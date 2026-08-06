@@ -16,6 +16,7 @@ export function Header() {
         <GlobalSearch />
         <nav className={styles.top}>
           <Link href="/">Projects</Link>
+          <Link href="/stocks">Items &amp; Stocks</Link>
           <Link href="/settings">Settings</Link>
           <Link href="/projects/new" className={styles.primary}>
             + New Project

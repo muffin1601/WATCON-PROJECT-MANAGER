@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { CSSProperties, ReactNode } from "react";
 import styles from "./FormField.module.css";
 
 // Ported from label.f > span.t (the label wrapper used throughout every form in the prototype)
@@ -12,6 +12,10 @@ export function FormField({ label, children }: { label: string; children: ReactN
 }
 
 // Ported from .frow { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)) }
-export function FormRow({ children }: { children: ReactNode }) {
-  return <div className={styles.frow}>{children}</div>;
+export function FormRow({ children, style }: { children: ReactNode; style?: CSSProperties }) {
+  return (
+    <div className={styles.frow} style={style}>
+      {children}
+    </div>
+  );
 }

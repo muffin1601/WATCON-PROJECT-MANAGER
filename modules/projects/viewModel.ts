@@ -72,6 +72,7 @@ export function buildProjectViewModel(p: ProjectDetail, gstRatePct: number) {
     termsGst: p.termsGst,
     termsTransport: p.termsTransport,
     paymentTerms: p.paymentTerms,
+    aiGenerated: p.aiGenerated,
     createdAt: p.createdAt.toISOString(),
 
     items: p.items
