@@ -88,6 +88,12 @@ export function SettingsForm({ initial }: { initial: SettingsInput }) {
               <TextInput {...register("appPassword")} />
               {errors.appPassword && <p className={styles.error}>{errors.appPassword.message}</p>}
             </FormField>
+            {/* Write-only: stored as a hash, so there is nothing to show here.
+                Left blank, the current password is kept unchanged. */}
+            <FormField label="Full-project deletion password (leave blank to keep current)">
+              <TextInput type="password" autoComplete="new-password" {...register("deletePassword")} />
+              {errors.deletePassword && <p className={styles.error}>{errors.deletePassword.message}</p>}
+            </FormField>
           </FormRow>
           <div className={styles.actions}>
             <Button type="submit" variant="primary" disabled={saveMutation.isPending}>

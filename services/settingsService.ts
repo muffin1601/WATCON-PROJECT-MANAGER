@@ -1,10 +1,16 @@
 import { prisma } from "../lib/prisma";
+import { hashPassword } from "../lib/deletePassword";
 import type { SettingsInput } from "../modules/settings/schema";
 
 export async function updateSettings(input: SettingsInput) {
   return prisma.setting.update({
     where: { key: "default" },
     data: {
+      // Only ever written as a hash, and only when a new one was typed — a
+      // blank field means "keep the existing password", not "clear it".
+      ...(input.deletePassword
+        ? { deletePasswordHash: await hashPassword(input.deletePassword) }
+        : {}),
       companyName: input.companyName,
       address: input.address,
       phone: input.phone,
@@ -27,7 +33,7 @@ export async function updateSettings(input: SettingsInput) {
 // entirely and needs an explicit human decision, not a button. See
 // KNOWN_LIMITATIONS.md.
 export async function exportAllData() {
-  const [settings, projects] = await Promise.all([
+  const [settingsRow, projects] = await Promise.all([
     prisma.setting.findUnique({ where: { key: "default" } }),
     prisma.project.findMany({
       include: {
@@ -41,5 +47,8 @@ export async function exportAllData() {
       },
     }),
   ]);
+  // The deletion password hash is a credential, not business data — it has no
+  // place in a JSON backup that gets downloaded and mailed around.
+  const settings = settingsRow ? { ...settingsRow, deletePasswordHash: undefined } : settingsRow;
   return { exportedAt: new Date().toISOString(), settings, projects };
 }

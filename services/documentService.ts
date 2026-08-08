@@ -154,6 +154,54 @@ export async function deleteDocument(documentId: string) {
   return prisma.document.delete({ where: { id: documentId } });
 }
 
+/**
+ * Bulk storage cleanup for rows that have already been deleted from the
+ * database (project deletion cascades the Document rows away, so there is
+ * nothing left to look the paths up from afterwards — they are collected
+ * beforehand and handed here).
+ *
+ * Never throws. At this point the database is already consistent; a storage
+ * error means some objects were left behind, which is reported as a count so
+ * the operator can see it, not raised as a failure of a delete that has in
+ * fact succeeded.
+ */
+export async function removeStorageObjects(
+  files: { bucket: string; storagePath: string }[]
+): Promise<{ removed: number; failed: number }> {
+  if (!files.length) return { removed: 0, failed: 0 };
+
+  const byBucket = new Map<string, string[]>();
+  for (const file of files) {
+    const paths = byBucket.get(file.bucket) ?? [];
+    paths.push(file.storagePath);
+    byBucket.set(file.bucket, paths);
+  }
+
+  const supabase = supabaseServer();
+  let removed = 0;
+  let failed = 0;
+
+  for (const [bucket, paths] of byBucket) {
+    // Supabase caps a remove() call at 1000 keys.
+    for (let i = 0; i < paths.length; i += 500) {
+      const batch = paths.slice(i, i + 500);
+      try {
+        const { error } = await supabase.storage.from(bucket).remove(batch);
+        if (error) {
+          console.error(`[storage] failed to remove ${batch.length} object(s) from ${bucket}:`, error.message);
+          failed += batch.length;
+        } else {
+          removed += batch.length;
+        }
+      } catch (err) {
+        console.error(`[storage] failed to remove ${batch.length} object(s) from ${bucket}:`, err);
+        failed += batch.length;
+      }
+    }
+  }
+  return { removed, failed };
+}
+
 // All versions of a document, oldest first, given any version's id.
 export async function listDocumentVersions(documentId: string) {
   const doc = await prisma.document.findUnique({ where: { id: documentId } });

@@ -24,3 +24,28 @@
 .statusSelect {
   width: auto;
 }
+/* Wraps under the title on narrow screens rather than squeezing the status
+   select; both controls stay full-width and tappable on a phone. */
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.deleteBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+@media (max-width: 560px) {
+  .actions {
+    width: 100%;
+  }
+  .actions .statusSelect,
+  .deleteBtn {
+    flex: 1 1 100%;
+    justify-content: center;
+    width: 100%;
+  }
+}

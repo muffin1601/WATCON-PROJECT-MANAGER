@@ -64,9 +64,130 @@ export async function updateProject(id: string, input: ProjectUpdateInput) {
   });
 }
 
-export async function deleteProject(id: string) {
-  return prisma.project.delete({ where: { id } });
+// ---------- Delete an entire project ----------
+// (The former bare `deleteProject()` is gone: it deleted the row without
+// authorisation and without cleaning up the project's files in storage.
+// deleteProjectCompletely() below is the only deletion path.)
+
+export interface ProjectDeletionSummary {
+  projectName: string;
+  items: number;
+  orders: number;
+  challans: number;
+  transports: number;
+  bills: number;
+  payments: number;
+  discounts: number;
+  amendments: number;
+  purchaseOrders: number;
+  documents: number;
+  extractionJobs: number;
+  /** Storage objects removed, and any that could not be removed. */
+  filesRemoved: number;
+  filesFailed: number;
 }
+
+/**
+ * Every Document that belongs to this project, however it is attached.
+ *
+ * Documents hang off a project directly *or* off one of its challans,
+ * payments, amendments, transports, purchase orders or additional orders. All
+ * of those rows cascade away with the project, so their files must be
+ * collected before the delete — afterwards there is no row left to find the
+ * storage path from, and the object would leak forever.
+ */
+function projectDocumentFilter(projectId: string) {
+  return {
+    OR: [
+      { projectId },
+      { challan: { projectId } },
+      { payment: { projectId } },
+      { amendment: { projectId } },
+      { transport: { projectId } },
+      { purchaseOrder: { projectId } },
+      { projectOrder: { projectId } },
+    ],
+  };
+}
+
+/**
+ * Deletes a project and everything that belongs exclusively to it.
+ *
+ * What is removed: the project row, its Sales Order items and additional
+ * orders, challans (with their items, extra items and links), transports,
+ * running bills and bill lines, payments, discounts, amendments, vendor
+ * purchase orders and their lines, every uploaded document (all versions,
+ * their extracted page text and OCR results), extraction jobs, and the
+ * project's activity log.
+ *
+ * What is deliberately NOT touched: other projects, and the shared master
+ * data — vendors, the Items & Stocks master and its stock entries, company
+ * settings, backup history. None of those are project-owned; a vendor exists
+ * independently of any one order, and deleting stock history because a
+ * project was removed would corrupt every other project's stock position.
+ *
+ * Ordering is deliberate. The database delete runs first and is a single
+ * statement, so the schema's ON DELETE CASCADE rules make it atomic — it
+ * cannot half-succeed and leave orphaned challans or bills behind. Storage
+ * cleanup follows. If a file removal fails, the database is already
+ * consistent and the caller is told how many objects were left behind, which
+ * is a recoverable leak; doing it the other way round would risk deleting
+ * files belonging to a project that then survives.
+ */
+export async function deleteProjectCompletely(
+  projectId: string,
+  removeFiles: (files: { bucket: string; storagePath: string }[]) => Promise<{ removed: number; failed: number }>
+): Promise<ProjectDeletionSummary> {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: {
+      name: true,
+      _count: {
+        select: {
+          items: true,
+          orders: true,
+          challans: true,
+          transports: true,
+          bills: true,
+          payments: true,
+          discounts: true,
+          amendments: true,
+          purchaseOrders: true,
+          extractionJobs: true,
+        },
+      },
+    },
+  });
+  if (!project) throw new ProjectNotFoundError("Project not found");
+
+  const documents = await prisma.document.findMany({
+    where: projectDocumentFilter(projectId),
+    select: { bucket: true, storagePath: true },
+  });
+
+  await prisma.project.delete({ where: { id: projectId } });
+
+  const { removed, failed } = documents.length ? await removeFiles(documents) : { removed: 0, failed: 0 };
+
+  return {
+    projectName: project.name,
+    items: project._count.items,
+    orders: project._count.orders,
+    challans: project._count.challans,
+    transports: project._count.transports,
+    bills: project._count.bills,
+    payments: project._count.payments,
+    discounts: project._count.discounts,
+    amendments: project._count.amendments,
+    purchaseOrders: project._count.purchaseOrders,
+    documents: documents.length,
+    extractionJobs: project._count.extractionJobs,
+    filesRemoved: removed,
+    filesFailed: failed,
+  };
+}
+
+export class ProjectNotFoundError extends Error {}
 
 export async function addProjectItem(projectId: string, input: PoItemInput, sortOrder: number) {
   return prisma.poItem.create({

@@ -140,7 +140,20 @@ export function validateOrder(result: AiOrderResult): ValidationReport {
     }
   }
 
-  return buildReport(issues);
+  const report = buildReport(issues);
+
+  // A single sentence at the top of the list, so the reviewer knows the size
+  // of the job before reading twelve individual notes. Prepended after the
+  // report is built so it cannot itself flag a row.
+  if (report.flaggedRows.length > 0) {
+    report.issues.unshift({
+      severity: "warning",
+      rowIndex: null,
+      field: null,
+      message: `${report.flaggedRows.length} of ${items.length} item(s) require review because their product, quantity, rate or amount could not be confidently identified. Every value shown is exactly as read from the document — nothing was substituted.`,
+    });
+  }
+  return report;
 }
 
 export function validateChallan(result: AiChallanResult): ValidationReport {

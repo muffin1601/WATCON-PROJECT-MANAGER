@@ -31,7 +31,13 @@ const nextConfig: NextConfig = {
   // Tells Next.js to leave these un-bundled on the server so Node's normal
   // module resolution handles them instead of webpack/Turbopack rewriting
   // their internal path lookups.
-  serverExternalPackages: ["tesseract.js", "pdf-parse", "@napi-rs/canvas"],
+  // pdfjs-dist is listed explicitly because services/import/pdfTable.ts now
+  // imports it directly (for text-run coordinates, which pdf-parse does not
+  // expose) alongside pdf-parse's own import of it. Left un-external, webpack
+  // would bundle a second copy, and the two would no longer share the
+  // GlobalWorkerOptions that pdf-parse configures — pdfjs would then refuse
+  // to start its worker for our copy.
+  serverExternalPackages: ["tesseract.js", "pdf-parse", "pdfjs-dist", "@napi-rs/canvas"],
 
   outputFileTracingIncludes: {
     "/api/ai/extract": OCR_FILE_TRACING_INCLUDES,

@@ -1,0 +1,55 @@
+.warn {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  color: var(--danger);
+}
+.warn > svg {
+  flex: none;
+  margin-top: 2px;
+}
+.lead {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text, #16323a);
+  margin-bottom: 8px;
+}
+.body {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+.cannot {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--danger);
+  margin-top: 10px;
+}
+.error {
+  font-size: 12.5px;
+  color: var(--danger);
+  margin-top: 8px;
+}
+
+/* The danger variant is an outline button by default; a destructive
+   confirmation needs to read as destructive at a glance. */
+.destructive {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+.destructive:hover:not(:disabled) {
+  background: var(--danger);
+  filter: brightness(0.92);
+}
+
+/* Below ~420px "Delete project permanently" and "Cancel" no longer fit side
+   by side; stacking them full-width keeps both reachable instead of letting
+   one overflow the dialog. The Modal itself is already width:100% inside a
+   16px viewport gutter, so nothing else needs to change. */
+@media (max-width: 420px) {
+  .footBtn {
+    width: 100%;
+  }
+}

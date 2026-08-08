@@ -3,6 +3,8 @@ import { PDFParse, PasswordException, InvalidPDFException } from "pdf-parse";
 import { getOcrProvider } from "../ocr";
 import { EncryptedPdfError, CorruptPdfError } from "../ocr/pdfText";
 import { EMPTY_EXTRACTED_ORDER, type ExtractedOrderInput } from "../../modules/import/schema";
+import { isSpreadsheetFile, readWorkbook } from "./spreadsheet";
+import { buildOrderFromWorkbook } from "./spreadsheetOrder";
 
 // Local (no cloud AI) auto-read of a PO/BOQ/quotation into the same shape
 // the prototype's Claude-vision extractOrder() produced. Two strategies:
@@ -280,8 +282,36 @@ function itemsFromLines(rawText: string): NonNullable<ExtractedOrderInput["items
   return items;
 }
 
-export async function parseOrderFromBuffer(buffer: Buffer, mimeType: string): Promise<ExtractedOrderInput> {
+export async function parseOrderFromBuffer(
+  buffer: Buffer,
+  mimeType: string,
+  fileName = ""
+): Promise<ExtractedOrderInput> {
   const result: ExtractedOrderInput = structuredClone(EMPTY_EXTRACTED_ORDER);
+
+  // Spreadsheets used to be rejected outright here ("Auto-read supports PDF,
+  // PNG and JPEG files"), which meant this endpoint could not read the very
+  // file format that is easiest to read exactly. They now go through the same
+  // structured reader the AI pipeline uses, so a .xlsx or .csv gets identical
+  // items, makes, quantities and rates whichever route it arrives by.
+  if (isSpreadsheetFile(mimeType, fileName)) {
+    const workbook = await readWorkbook(buffer, fileName);
+    const { result: order } = buildOrderFromWorkbook(workbook, fileName);
+    const d = order.extractedData;
+    return {
+      projectName: d.projectName,
+      clientName: d.clientName,
+      poNumber: d.poNumber,
+      poDate: d.poDate,
+      siteAddress: d.siteAddress,
+      terms: d.terms,
+      gstRatePct: d.gstRatePct || null,
+      discountAmount: d.discountAmount || null,
+      discountPct: d.discountPct || null,
+      documentTotal: d.documentTotal,
+      items: d.items,
+    };
+  }
 
   let rawText = "";
   let tableItems: NonNullable<ExtractedOrderInput["items"]> = [];

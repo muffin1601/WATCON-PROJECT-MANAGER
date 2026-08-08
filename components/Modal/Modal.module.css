@@ -43,4 +43,7 @@
   display: flex;
   gap: 10px;
   justify-content: flex-end;
+  /* On a narrow phone a pair of long action labels would otherwise overflow
+     the dialog and put one button off-screen. */
+  flex-wrap: wrap;
 }

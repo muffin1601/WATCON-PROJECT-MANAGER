@@ -99,19 +99,18 @@ export async function extractChallanDocument(
 }
 
 /**
- * Proportional rate reconciliation, carried over from the prototype's
- * `finalizeExtract()`.
+ * Cross-checks the item rows against the document's own stated total.
  *
- * When the sum of qty x rate disagrees with the document's own stated total
- * by more than 0.5%, the usual cause is a discount or rounding the model
- * applied to the total but not to every individual rate. Scaling the rates so
- * the Sales Order lands on the figure the client actually signed matters more
- * than preserving each printed rate — a Sales Order that does not tally with
- * its PO causes a billing dispute later.
+ * This function used to *scale every rate* by `statedTotal / sum(qty x rate)`
+ * whenever the two disagreed by more than 0.5%. That silently rewrote prices
+ * the client had signed for: a PO whose printed total happens to include GST,
+ * freight or a rounding line — which is most of them — would come out with
+ * every single rate multiplied by a factor of its own, and the Sales Order
+ * would then carry rates that appear on no document anywhere.
  *
- * The guard band (0.5x-1.5x) keeps this from "fixing" a genuinely wrong
- * documentTotal by mangling every rate; outside it the values are left alone
- * and the discrepancy is reported instead.
+ * The document is the source of truth. Rates are now reported, never
+ * adjusted; a mismatch becomes a validation message for the human reviewer,
+ * who can see the document and decide what the difference actually is.
  */
 export function reconcileOrderTotals(result: AiOrderResult): AiOrderResult {
   const items = result.extractedData.items;
@@ -120,21 +119,13 @@ export function reconcileOrderTotals(result: AiOrderResult): AiOrderResult {
 
   if (stated <= 0 || computed <= 0) return result;
 
-  const factor = stated / computed;
-  if (Math.abs(1 - factor) <= 0.005) return result;
+  const drift = Math.abs(computed - stated) / stated;
+  if (drift <= 0.005) return result;
 
-  if (factor > 0.5 && factor < 1.5) {
-    result.extractedData.items = items.map((it) => ({
-      ...it,
-      rate: Math.round(it.rate * factor * 100) / 100,
-    }));
-    result.warnings.push(
-      `Item rates were scaled by ${factor.toFixed(4)} so the order total matches the document's stated total of ${stated.toLocaleString("en-IN")}.`
-    );
-  } else {
-    result.validation.push(
-      `The sum of the item rows (${Math.round(computed).toLocaleString("en-IN")}) does not match the document's stated total (${Math.round(stated).toLocaleString("en-IN")}). Rates were left exactly as printed — please check before saving.`
-    );
-  }
+  result.validation.push(
+    `The item rows total ${Math.round(computed).toLocaleString("en-IN")} against the document's stated total of ${Math.round(
+      stated
+    ).toLocaleString("en-IN")} (${(drift * 100).toFixed(1)}% apart). Every rate is exactly as the document prints it — the difference is usually GST, freight, a discount line or a missing row. Please check before saving.`
+  );
   return result;
 }

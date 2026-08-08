@@ -1,6 +1,7 @@
 import type { AiOrderResult, AiChallanResult } from "../../modules/ai/schema";
 import type { ExtractedOrder } from "../../modules/import/schema";
 import type { ValidationReport } from "./validate";
+import { normaliseMake, splitInlineMake } from "../import/tableExtract";
 
 /**
  * Mapper layer — the boundary between AI output and the application.
@@ -41,12 +42,25 @@ export function toExtractedOrder(ai: AiOrderResult, report: ValidationReport): E
     gstRatePct: d.gstRatePct > 0 ? d.gstRatePct : null,
     discountAmount: d.discountAmount > 0 ? d.discountAmount : null,
     discountPct: d.discountPct > 0 ? d.discountPct : null,
-    items: d.items.map((it) => ({
-      description: it.description.trim(),
+    items: d.items.map((it) => {
+      // Make normalisation happens HERE, at the boundary every engine passes
+      // through, rather than in any one reader. Whatever read the file —
+      // structured spreadsheet parsing, the PDF table reader, Claude, or the
+      // local fallback — an item reaches the Sales Order with the make in the
+      // make field and not buried in its description. That matters because
+      // `description + make` is the Items & Stocks master key: the same
+      // product read two different ways must produce one stock line, not two.
+      const columnMake = normaliseMake(it.make);
+      const resolved = columnMake
+        ? { description: it.description.trim(), make: columnMake }
+        : splitInlineMake(it.description.trim());
+
+      return {
+      description: resolved.description,
       unit: it.unit.trim() || "Nos",
       qty: it.qty,
       rate: it.rate,
-      make: it.make.trim(),
+      make: resolved.make,
       specification: it.specification.trim(),
       code: it.code.trim(),
       amount: it.amount,
@@ -54,7 +68,8 @@ export function toExtractedOrder(ai: AiOrderResult, report: ValidationReport): E
       remarks: it.remarks.trim(),
       sourcePage: it.sourcePage,
       confidence: it.confidence,
-    })),
+      };
+    }),
     documentType: ai.documentType,
     confidence: ai.confidence,
     documentTotal: d.documentTotal,

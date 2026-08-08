@@ -17,7 +17,10 @@ export async function POST(req: NextRequest) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const extracted = await parseOrderFromBuffer(buffer, file.type);
+    // The file name matters for spreadsheets: browsers frequently send .csv
+    // and .xlsx as application/octet-stream, so the extension is what
+    // identifies them.
+    const extracted = await parseOrderFromBuffer(buffer, file.type, file.name);
     return NextResponse.json({ extracted });
   } catch (err) {
     if (err instanceof EncryptedPdfError || err instanceof CorruptPdfError) {

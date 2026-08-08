@@ -1,10 +1,16 @@
 import "../ocr/domPolyfill";
 import { PDFParse, PasswordException, InvalidPDFException } from "pdf-parse";
-import ExcelJS from "exceljs";
 import type { ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import { EncryptedPdfError, CorruptPdfError } from "../ocr/pdfText";
 import { MAX_DOCUMENT_PAGES, MAX_AI_FILE_BYTES } from "./config";
 import { AiExtractionError } from "./client";
+import {
+  readWorkbook,
+  gridToText,
+  isSpreadsheetFile,
+  SpreadsheetReadError,
+  type WorkbookGrid,
+} from "../import/spreadsheet";
 
 /**
  * Ingestion turns an uploaded file into the content blocks Claude reads.
@@ -31,22 +37,20 @@ export interface IngestedDocument {
   requiresVisualReading: boolean;
   /** Digital-PDF/spreadsheet text, kept for validation cross-checks. */
   textLayer: string;
+  /**
+   * Parsed cell grid, present only for spreadsheets/CSV. Its presence is what
+   * lets the extraction layer read the file deterministically instead of
+   * asking a model to transcribe it — see services/import/spreadsheetOrder.ts.
+   */
+  workbook?: WorkbookGrid;
 }
-
-const SPREADSHEET_MIMES = new Set([
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "application/vnd.ms-excel",
-  "text/csv",
-  "application/csv",
-]);
 
 export function isSupportedForAi(mimeType: string, fileName: string): boolean {
   if (mimeType === "application/pdf") return true;
   if (mimeType === "image/png" || mimeType === "image/jpeg" || mimeType === "image/jpg") return true;
-  if (SPREADSHEET_MIMES.has(mimeType)) return true;
-  // Browsers frequently send CSV/XLSX as application/octet-stream, so fall
-  // back to the extension rather than rejecting a valid file.
-  return /\.(csv|xlsx|xls)$/i.test(fileName);
+  // Browsers frequently send CSV/XLSX as application/octet-stream, so the
+  // extension is checked alongside the MIME type rather than instead of it.
+  return isSpreadsheetFile(mimeType, fileName);
 }
 
 function assertSize(buffer: Buffer) {
@@ -104,13 +108,28 @@ async function ingestPdf(buffer: Buffer): Promise<IngestedDocument> {
   const meaningfulText = textLayer.replace(/\s+/g, "").length;
   const scanned = pageCount > 0 && meaningfulText / pageCount < 40;
 
+  const blocks: ContentBlockParam[] = [
+    {
+      type: "document",
+      source: { type: "base64", media_type: "application/pdf", data: buffer.toString("base64") },
+    },
+  ];
+
+  // For a digital PDF, hand over the embedded text layer alongside the
+  // rendered pages. The page image is what preserves the table *layout*; the
+  // text layer is what preserves the exact digits. Reading "1,25,000.50" off
+  // a rendered glyph run is where transcription errors in rates come from,
+  // and having both lets the model cross-check a figure it is unsure of
+  // instead of committing to a reading of the pixels.
+  if (!scanned && textLayer.trim()) {
+    blocks.push({
+      type: "text",
+      text: `----- EMBEDDED TEXT LAYER (exact characters, layout not preserved) -----\n${textLayer.slice(0, 400_000)}`,
+    });
+  }
+
   return {
-    blocks: [
-      {
-        type: "document",
-        source: { type: "base64", media_type: "application/pdf", data: buffer.toString("base64") },
-      },
-    ],
+    blocks,
     sourceKind: scanned ? "pdf-scanned" : "pdf-digital",
     pageCount,
     requiresVisualReading: scanned,
@@ -135,61 +154,32 @@ function ingestImage(buffer: Buffer, mimeType: string): IngestedDocument {
 }
 
 /**
- * Spreadsheets are converted to CSV text server-side rather than sent as a
- * file: Claude has no spreadsheet reader, and CSV text is both far cheaper in
- * tokens and lossless for the values that matter. Merged cells are unmerged
- * by repeating the anchor value so a merged "Section" header does not leave
- * blank cells the model has to guess at.
+ * Spreadsheets are parsed into a typed cell grid, not flattened to display
+ * text.
+ *
+ * The grid is the authoritative source for extraction (see
+ * services/import/spreadsheetOrder.ts). The text rendering produced here is
+ * only ever *context* for a model — used when no table could be identified —
+ * so the fact that rendering to text loses type information no longer matters
+ * to the values that reach the Sales Order.
  */
 async function ingestSpreadsheet(buffer: Buffer, fileName: string): Promise<IngestedDocument> {
-  const workbook = new ExcelJS.Workbook();
-
-  if (/\.csv$/i.test(fileName)) {
-    const text = buffer.toString("utf8");
-    return {
-      blocks: [{ type: "text", text: `----- CSV: ${fileName} -----\n${text}` }],
-      sourceKind: "spreadsheet",
-      pageCount: 1,
-      requiresVisualReading: false,
-      textLayer: text,
-    };
-  }
-
+  let workbook: WorkbookGrid;
   try {
-    // ExcelJS accepts a Node Buffer here; its typings ask for ArrayBuffer.
-    await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
-  } catch {
-    throw new AiExtractionError("This spreadsheet could not be opened — it may be corrupted or password-protected.");
+    workbook = await readWorkbook(buffer, fileName);
+  } catch (err) {
+    if (err instanceof SpreadsheetReadError) throw new AiExtractionError(err.message);
+    throw err;
   }
 
-  const parts: string[] = [];
-  for (const sheet of workbook.worksheets) {
-    const rows: string[] = [];
-    sheet.eachRow({ includeEmpty: false }, (row) => {
-      const cells: string[] = [];
-      row.eachCell({ includeEmpty: true }, (cell) => {
-        // `cell.text` resolves formulas to their cached result and returns
-        // the merged-anchor value for covered cells.
-        const value = (cell.text ?? "").toString().replace(/\s+/g, " ").trim();
-        cells.push(value.includes(",") ? `"${value.replace(/"/g, '""')}"` : value);
-      });
-      while (cells.length && cells[cells.length - 1] === "") cells.pop();
-      if (cells.length) rows.push(cells.join(","));
-    });
-    if (rows.length) parts.push(`===== SHEET: ${sheet.name} =====\n${rows.join("\n")}`);
-  }
-
-  if (!parts.length) {
-    throw new AiExtractionError("This spreadsheet has no readable rows.");
-  }
-
-  const text = parts.join("\n\n");
+  const text = gridToText(workbook);
   return {
     blocks: [{ type: "text", text: `----- SPREADSHEET: ${fileName} -----\n${text}` }],
     sourceKind: "spreadsheet",
-    pageCount: workbook.worksheets.length,
+    pageCount: workbook.sheets.length,
     requiresVisualReading: false,
     textLayer: text,
+    workbook,
   };
 }
 
@@ -204,7 +194,7 @@ export async function ingestDocument(
   if (mimeType === "image/png" || mimeType === "image/jpeg" || mimeType === "image/jpg") {
     return ingestImage(buffer, mimeType);
   }
-  if (SPREADSHEET_MIMES.has(mimeType) || /\.(csv|xlsx|xls)$/i.test(fileName)) {
+  if (isSpreadsheetFile(mimeType, fileName)) {
     return ingestSpreadsheet(buffer, fileName);
   }
 

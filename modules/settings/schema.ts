@@ -17,5 +17,14 @@ export const settingsInputSchema = z.object({
   challanNext: z.coerce.number().int().min(1),
   billPrefix: z.string().min(1),
   appPassword: z.string().min(4, "Password must be at least 4 characters"),
+  // Full-project deletion password. Write-only: the form always renders it
+  // blank and an empty value means "leave the current one alone", because the
+  // stored hash cannot (and must not) be sent back to the browser to
+  // pre-fill a field.
+  deletePassword: z
+    .string()
+    .refine((v) => v === "" || v.length >= 8, "Deletion password must be at least 8 characters")
+    .optional()
+    .default(""),
 });
 export type SettingsInput = z.infer<typeof settingsInputSchema>;

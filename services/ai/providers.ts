@@ -3,6 +3,9 @@ import { extractOrderDocument, extractChallanDocument, classifyDocument, reconci
 import type { IngestedDocument } from "./ingest";
 import { isAiConfigured } from "./config";
 import { parseOrderFromBuffer } from "../import/orderParser";
+import { buildOrderFromWorkbook } from "../import/spreadsheetOrder";
+import { buildChallanFromWorkbook } from "../import/spreadsheetChallan";
+import { readPdfAsGrid } from "../import/pdfTable";
 import { getOcrProvider } from "../ocr";
 import { ocrScannedPdf } from "../ocr/pdfRaster";
 import { itemsFromOcrText } from "./ocrRows";
@@ -230,145 +233,6 @@ async function callGemini<T>(args: {
 const LOCAL_WARNING =
   "Read with the built-in local parser (no AI key configured or all AI engines failed). Values are best-effort — please review every row before saving.";
 
-interface CsvItem {
-  description: string;
-  make: string;
-  unit: string;
-  qty: number;
-  rate: number;
-  /** Set by the OCR row parser; CSV rows are read exactly and stay at 0.5. */
-  confidence?: number;
-}
-
-/** Splits one CSV line into cells, respecting simple quoted cells. */
-function csvCells(line: string): string[] {
-  return (line.match(/("([^"]|"")*"|[^,]*)(,|$)/g) ?? [])
-    .map((c) => c.replace(/,$/, "").trim().replace(/^"|"$/g, "").replace(/""/g, '"'))
-    .filter((_, i, arr) => !(i === arr.length - 1 && arr[i] === ""));
-}
-
-function num(cell: string | undefined): number {
-  if (!cell) return NaN;
-  return Number(cell.replace(/[,₹\s]/g, ""));
-}
-
-const TOTAL_ROW = /^(s\.?\s?no|total|sub\s*total|grand\s*total|total amount|description|particulars|note)/i;
-
-/**
- * Best-effort item rows out of CSV/spreadsheet text.
- *
- * Two strategies:
- *  1. HEADER-AWARE (preferred): find a header row naming Description + Qty +
- *     Rate (e.g. "Annexure,Section,S.No,Description,Brand / Makes,Qty,Unit,
- *     Rate (Rs),Amount (Rs)") and read every following row by column index.
- *     This is what real BOQ exports look like — leading Annexure/Section/S.No
- *     columns make positional guessing wrong (the bug the header pass fixes).
- *     Rows whose qty is not a positive number ("RO" = rate-only, blanks,
- *     section totals) are skipped, exactly like the AI prompt's rules.
- *  2. POSITIONAL fallback: first non-numeric cell = description, first two
- *     positive numbers after it = qty and rate. Used only when no header row
- *     exists anywhere in the sheet.
- */
-function itemsFromCsvText(text: string): CsvItem[] {
-  const unitWords = new Set(["nos", "no", "no.", "nos.", "pcs", "set", "sets", "mtr", "mtrs", "m", "rm", "sqft", "sqm", "kg", "kgs", "ltr", "ltrs", "lot", "ls", "job", "each", "bag", "bags", "metre", "mtr.", "kgs."]);
-  const lines = text.split(/\r?\n/);
-
-  // ---- Strategy 1: header-aware column mapping
-  interface ColMap { desc: number; qty: number; rate: number; unit: number; make: number }
-  let map: ColMap | null = null;
-  const items: CsvItem[] = [];
-
-  const findHeader = (cells: string[]): ColMap | null => {
-    const idx = (re: RegExp) => cells.findIndex((c) => re.test(c));
-    const desc = idx(/^(description|particulars|item description|material description)$/i);
-    const qty = idx(/^(qty\.?|quantity)$/i);
-    const rate = idx(/^rate\b/i);
-    if (desc < 0 || qty < 0 || rate < 0) return null;
-    return {
-      desc,
-      qty,
-      rate,
-      unit: idx(/^unit\b/i),
-      make: idx(/^(brand|make|brand \/ makes|makes?|brand\/makes?)\b/i),
-    };
-  };
-
-  for (const line of lines) {
-    const cells = csvCells(line);
-    if (cells.length < 3) continue;
-    const header = findHeader(cells);
-    if (header) {
-      map = header; // a later header (new sheet/annexure) re-maps columns
-      continue;
-    }
-    if (!map) continue;
-    const description = (cells[map.desc] ?? "").trim();
-    const qty = num(cells[map.qty]);
-    const rate = num(cells[map.rate]);
-    // Skip section headings, design-detail rows, totals, and "RO" (rate-only)
-    // rows — anything without a positive numeric qty AND rate is not billable.
-    if (!description || TOTAL_ROW.test(description)) continue;
-    if (!Number.isFinite(qty) || qty <= 0 || !Number.isFinite(rate) || rate < 0) continue;
-    items.push({
-      description: description.slice(0, 160),
-      make: map.make >= 0 ? (cells[map.make] ?? "").trim() : "",
-      unit: (map.unit >= 0 && (cells[map.unit] ?? "").trim()) || "Nos",
-      qty,
-      rate,
-    });
-  }
-  if (items.length) return items;
-
-  // ---- Strategy 2: positional fallback (no header row in the file)
-  for (const line of lines) {
-    const cells = csvCells(line);
-    if (cells.length < 3) continue;
-    const descIdx = cells.findIndex((c) => c && Number.isNaN(num(c)));
-    const description = descIdx >= 0 ? cells[descIdx]! : "";
-    if (!description || TOTAL_ROW.test(description)) continue;
-    // Numbers strictly AFTER the description cell — a leading serial-number
-    // column ("1, Sand Filter, ...") must never be mistaken for the qty.
-    const numbers = cells
-      .slice(descIdx + 1)
-      .map((c) => num(c))
-      .filter((n) => Number.isFinite(n) && n > 0);
-    if (numbers.length < 2) continue;
-    const unit = cells.map((c) => c.toLowerCase()).find((c) => unitWords.has(c)) ?? "Nos";
-    // Convention across BOQs: qty appears before rate; amount (largest) last.
-    const [qty, rate] = numbers;
-    if (!qty || rate === undefined) continue;
-    items.push({ description: description.slice(0, 160), make: "", unit, qty, rate });
-  }
-  return items;
-}
-
-/**
- * Key-value header fields out of BOQ/Work-Order spreadsheets whose top rows
- * look like "Work Order Ref,BPL/.../WC-483/2026" / "Date,14.01.2026" /
- * "Issued By (Owner),Basant Projects..." — best-effort, blank when absent.
- */
-function headerFieldsFromCsvText(text: string): { poNumber: string; poDate: string; clientName: string; projectName: string } {
-  const out = { poNumber: "", poDate: "", clientName: "", projectName: "" };
-  const lines = text.split(/\r?\n/).slice(0, 60);
-  for (const line of lines) {
-    const cells = csvCells(line);
-    if (cells.length < 2) continue;
-    const key = (cells[0] ?? "").toLowerCase();
-    const value = (cells[1] ?? "").trim();
-    if (!value) continue;
-    if (!out.poNumber && /(work order ref|po no|po number|order ref|wo no)/.test(key)) out.poNumber = value;
-    else if (!out.poDate && /^date/.test(key)) {
-      const m = value.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
-      if (m) {
-        const y = m[3]!.length === 2 ? `20${m[3]}` : m[3]!;
-        out.poDate = `${y}-${m[2]!.padStart(2, "0")}-${m[1]!.padStart(2, "0")}`;
-      }
-    } else if (!out.clientName && /(issued by|owner|client|customer)/.test(key)) out.clientName = value;
-    else if (!out.projectName && /^project/.test(key)) out.projectName = value;
-  }
-  return out;
-}
-
 /**
  * Local text for a document: embedded text layer if it has one, otherwise
  * OCR — Tesseract directly for images, page-by-page rasterisation for scanned
@@ -401,6 +265,23 @@ async function localOrderResult(
   buffer: Buffer,
   mimeType: string
 ): Promise<AiOrderResult> {
+  // Digital PDFs are read as a table first. The line-shaped heuristics below
+  // remain as a fallback, but they cannot preserve which cells share a row,
+  // so they are no longer the first thing tried on a document that has a real
+  // text layer.
+  if (mimeType === "application/pdf" && doc.sourceKind === "pdf-digital") {
+    try {
+      const grid = await readPdfAsGrid(buffer);
+      const outcome = buildOrderFromWorkbook(grid, "document.pdf");
+      if (outcome.usable) {
+        outcome.result.warnings.unshift(LOCAL_WARNING);
+        return outcome.result;
+      }
+    } catch (err) {
+      console.warn("[ai] local PDF table read failed, falling back to line heuristics:", err);
+    }
+  }
+
   let parsed: Awaited<ReturnType<typeof parseOrderFromBuffer>> | null = null;
   if (mimeType === "application/pdf" || mimeType === "image/png" || mimeType === "image/jpeg") {
     try {
@@ -455,26 +336,6 @@ async function localOrderResult(
     }
   }
 
-  // Spreadsheets never reach parseOrderFromBuffer — parse the CSV text here.
-  let csvFields: { poNumber: string; poDate: string; clientName: string; projectName: string } | null = null;
-  if (!items.length && doc.sourceKind === "spreadsheet") {
-    items = itemsFromCsvText(doc.textLayer).map((it) => ({
-      description: it.description,
-      make: it.make,
-      specification: "",
-      code: "",
-      unit: it.unit,
-      qty: it.qty,
-      rate: it.rate,
-      amount: it.qty * it.rate,
-      taxPct: 0,
-      remarks: "",
-      sourcePage: 0,
-      confidence: 0.5,
-    }));
-    csvFields = headerFieldsFromCsvText(doc.textLayer);
-  }
-
   const warnings = [LOCAL_WARNING];
   if (ocrPagesRead > 0) {
     warnings.push(
@@ -498,11 +359,11 @@ async function localOrderResult(
     documentType: "PURCHASE_ORDER",
     confidence: items.length ? 0.5 : 0.1,
     extractedData: {
-      projectName: csvFields?.projectName || parsed?.projectName || "",
-      clientName: csvFields?.clientName || parsed?.clientName || "",
+      projectName: parsed?.projectName || "",
+      clientName: parsed?.clientName || "",
       vendorName: "",
-      poNumber: csvFields?.poNumber || parsed?.poNumber || "",
-      poDate: csvFields?.poDate || parsed?.poDate || "",
+      poNumber: parsed?.poNumber || "",
+      poDate: parsed?.poDate || "",
       siteAddress: parsed?.siteAddress ?? "",
       deliveryAddress: "",
       gstin: "",
@@ -632,6 +493,22 @@ export async function extractOrderWithFallback(
   mimeType: string,
   fileName: string
 ): Promise<ExtractionOutcome<AiOrderResult>> {
+  // Structured files are read structurally, ahead of every AI engine.
+  //
+  // A spreadsheet is not a document that needs interpreting — it already has
+  // the table, the columns and the typed values. Asking a model to transcribe
+  // it can only introduce error, and transcription is where mismatched
+  // product/price pairs came from. The AI chain below is still reached when
+  // the file contains no identifiable table (a scanned image pasted into a
+  // sheet, a free-form quote), which is the only case where interpretation is
+  // genuinely needed.
+  if (doc.workbook) {
+    const outcome = buildOrderFromWorkbook(doc.workbook, fileName);
+    if (outcome.usable) {
+      return { result: outcome.result, usage: usageFor("structured-spreadsheet") };
+    }
+  }
+
   return withFallback<AiOrderResult>({
     anthropic: () => extractOrderDocument(doc, "PURCHASE_ORDER"),
     openai: async () => {
@@ -664,6 +541,15 @@ export async function extractChallanWithFallback(
   mimeType: string,
   fileName: string
 ): Promise<ExtractionOutcome<AiChallanResult>> {
+  // Same rule as orders: a spreadsheet already holds the table, so it is read
+  // structurally rather than transcribed by a model.
+  if (doc.workbook) {
+    const outcome = buildChallanFromWorkbook(doc.workbook, fileName);
+    if (outcome.usable) {
+      return { result: outcome.result, usage: usageFor("structured-spreadsheet") };
+    }
+  }
+
   return withFallback<AiChallanResult>({
     anthropic: () => extractChallanDocument(doc),
     openai: async () => {

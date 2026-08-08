@@ -38,6 +38,15 @@ const MONEY_RULES = `DISCOUNTS, ADD-ONS AND GST — the part that is easiest to 
 - GST BASIS — never double-count. If the document charges GST separately or says GST is extra, every \`rate\` you return must be the PRE-GST basic rate, and \`terms.gst\` must be "extra". If the document's rates or final price already include GST and no further GST will be added, keep those inclusive rates, set \`terms.gst\` to "included" and \`ratesAreGstInclusive\` to true.
 - \`documentTotal\` must be on the SAME basis as the rates you returned: the final payable per the document after all discounts, add-ons and rounding, EXCLUDING GST whenever \`terms.gst\` is "extra". If the printed grand total includes GST in that case, back-calculate the pre-GST figure.`;
 
+const FIDELITY_RULES = `THE DOCUMENT IS THE SOURCE OF TRUTH
+- Every value you return must be READ FROM THIS DOCUMENT. You are transcribing, not estimating. Never supply a value because it is plausible, typical for the trade, or consistent with the rest of the table.
+- Copy numbers EXACTLY as printed, preserving every decimal place. Drop only the grouping commas: "1,04,600.50" is 104600.50 — never 104600, never 1.046. Indian grouping is lakh-based, so "1,25,000" is 125000 and "₹1,250" is 1250 — never 1.25 or 125. Never treat a grouping comma as a decimal point.
+- Read each row as ONE horizontal unit. The description, quantity, unit, rate and amount you return for a row must all come from THAT row. Never carry a rate down from the row above, never borrow an amount from the row below, and never merge two printed rows into one item or split one printed row into two.
+- Where a row is wrapped across several printed lines, join the wrapped fragments back into that single row before reading its numbers.
+- Distinguish the columns by their meaning, not their position: quantity is how many, rate is the price of ONE unit, amount is the line total (usually quantity x rate), and tax/GST figures are separate again. If a row prints only an amount and a quantity, return the amount and quantity you can see and leave the rate at 0 — do not divide unless the document itself presents the rate that way.
+- If a field is genuinely absent from the document, return "" for text and 0 for numbers, and lower that row's confidence. An empty field a human can fill is correct; an invented one is not.
+- Return EVERY product row you can see. If the document lists 50 products, return 50 items. Never truncate, sample, deduplicate or summarise the list. A row you are unsure about must be returned with a low confidence, not omitted.`;
+
 const OUTPUT_RULES = `VALIDATION AND HONESTY
 - Populate \`validation\` with problems you found in the DOCUMENT: item rows whose qty x rate does not match the printed amount, a total that does not reconcile with the sum of items, obviously duplicated rows, a row missing its quantity. State each plainly, naming the item.
 - Populate \`warnings\` with anything a human reviewer should look at, including pages you could not read fully.
@@ -48,6 +57,7 @@ export const ORDER_SYSTEM_PROMPT = [
   BUSINESS_CONTEXT,
   `You are reading a Purchase Order, BOQ (bill of quantities), or approved quotation, and returning it as structured data.`,
   READING_RULES,
+  FIDELITY_RULES,
   ITEM_RULES,
   MONEY_RULES,
   OUTPUT_RULES,
@@ -58,6 +68,7 @@ export const CHALLAN_SYSTEM_PROMPT = [
   BUSINESS_CONTEXT,
   `You are reading a DELIVERY CHALLAN (goods dispatch note) and returning it as structured data. A challan lists quantities dispatched; it frequently carries no rates at all, and that is expected — never invent them.`,
   READING_RULES,
+  FIDELITY_RULES,
   `WHICH ROWS ARE ITEMS
 - Return every goods line that has a numeric quantity.
 - SKIP headings, totals, notes, transport/vehicle detail lines, and the received-by / authorised-signatory block.

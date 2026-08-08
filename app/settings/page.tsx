@@ -22,6 +22,9 @@ export default async function SettingsPage() {
           challanNext: s.challanNext,
           billPrefix: s.billPrefix,
           appPassword: s.appPassword,
+          // Always blank: the deletion password exists only as a hash and is
+          // never sent to the browser.
+          deletePassword: "",
         }}
       />
     </>

@@ -1,9 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
+import { Trash2 } from "lucide-react";
 import { Chip } from "../Chip/Chip";
+import { Button } from "../Button/Button";
 import { Select } from "../Form/Inputs";
+import { DeleteProjectModal } from "./DeleteProjectModal";
 import { PROJECT_STATUS_LABEL, PROJECT_TYPE_LABEL } from "../../modules/projects/data";
 import { apiFetch } from "../../lib/apiClient";
 import { useToast } from "../Toast/ToastProvider";
@@ -21,6 +25,7 @@ const APPROVAL_LABEL: Record<string, string> = {
 export function ProjectHeader({ project }: { project: ProjectViewModel }) {
   const router = useRouter();
   const toast = useToast();
+  const [deleting, setDeleting] = useState(false);
 
   const statusMutation = useMutation({
     mutationFn: (status: string) =>
@@ -39,17 +44,32 @@ export function ProjectHeader({ project }: { project: ProjectViewModel }) {
           {project.poNumber ? ` · Ref: ${project.poNumber}` : ""}
         </div>
       </div>
-      <Select
-        className={styles.statusSelect}
-        defaultValue={project.status}
-        onChange={(e) => statusMutation.mutate(e.target.value)}
-      >
-        {Object.entries(PROJECT_STATUS_LABEL).map(([value, label]) => (
-          <option key={value} value={value}>
-            {label}
-          </option>
-        ))}
-      </Select>
+      <div className={styles.actions}>
+        <Select
+          className={styles.statusSelect}
+          defaultValue={project.status}
+          onChange={(e) => statusMutation.mutate(e.target.value)}
+        >
+          {Object.entries(PROJECT_STATUS_LABEL).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </Select>
+        {/* Visible but not adjacent to any routine control, and it opens a
+            two-step confirmation — a single click can never delete anything. */}
+        <Button variant="danger" className={styles.deleteBtn} onClick={() => setDeleting(true)}>
+          <Trash2 size={15} aria-hidden />
+          Delete Full Project
+        </Button>
+      </div>
+      {deleting && (
+        <DeleteProjectModal
+          projectId={project.id}
+          projectName={project.name}
+          onClose={() => setDeleting(false)}
+        />
+      )}
     </div>
   );
 }

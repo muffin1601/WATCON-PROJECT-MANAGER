@@ -161,6 +161,12 @@ model Setting {
   // NOT a security boundary: the app is public/no-auth by design, and this
   // value reaches the client. It only prevents accidental edits.
   appPassword   String   @default("pincode110020")
+  // Gate for deleting an ENTIRE project — a genuinely irreversible action, so
+  // unlike appPassword above this is a real boundary: only a scrypt hash is
+  // stored, it is never selected into any payload that reaches the browser,
+  // and verification happens server-side inside the delete request itself.
+  // See lib/deletePassword.ts.
+  deletePasswordHash String?
   updatedAt     DateTime @updatedAt
 
   @@map("settings")
