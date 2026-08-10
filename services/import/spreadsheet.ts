@@ -25,8 +25,13 @@ export interface SheetGrid {
 
 export interface WorkbookGrid {
   sheets: SheetGrid[];
-  /** ".xlsx" | ".xls" | ".csv" — drives the messages shown on failure. */
-  kind: "xlsx" | "csv";
+  /**
+   * Where the grid came from. "pdf" is a reconstructed page: one item may be
+   * printed over several rows there, which is never true of a real
+   * spreadsheet, so the row reader only stitches wrapped lines together for
+   * this kind.
+   */
+  kind: "xlsx" | "csv" | "pdf";
 }
 
 export class SpreadsheetReadError extends Error {}

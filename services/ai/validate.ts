@@ -130,7 +130,16 @@ export function validateOrder(result: AiOrderResult): ValidationReport {
   if (documentTotal > 0 && items.length > 0) {
     const computed = items.reduce((sum, it) => sum + it.qty * it.rate, 0);
     const drift = Math.abs(computed - documentTotal) / documentTotal;
-    if (drift > 0.01) {
+    // A document's stated total is the net figure: items, less its discount,
+    // plus its GST. When the discount and tax the document itself prints
+    // reproduce that total, the rows are proven complete — warning "some rows
+    // may be missing" there is false, and it fired on every correctly-read PO
+    // that carried a discount or GST line.
+    const { discountAmount, discountPct, gstRatePct } = result.extractedData;
+    const discountValue = discountAmount > 0 ? discountAmount : (computed * discountPct) / 100;
+    const reconciled = (computed - discountValue) * (1 + gstRatePct / 100);
+    const explained = Math.abs(reconciled - documentTotal) <= Math.max(1, documentTotal * 0.01);
+    if (drift > 0.01 && !explained) {
       issues.push({
         severity: "warning",
         rowIndex: null,

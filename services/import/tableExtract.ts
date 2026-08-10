@@ -1,5 +1,5 @@
 import type { CellValue, SheetGrid, WorkbookGrid } from "./spreadsheet";
-import { parseNumber, parsePositive, round } from "./numbers";
+import { parseNumber, parseQuantity, round } from "./numbers";
 
 /**
  * Deterministic product/price extraction from a spreadsheet or CSV grid.
@@ -169,7 +169,16 @@ function headerMapFor(row: CellValue[]): { map: ColumnMap; score: number } | nul
     if (!raw || raw.length > 60) return;
     // A header cell is a label, not data: a purely numeric cell never is one.
     if (parseNumber(raw) !== null) return;
-    const text = raw.replace(/[()\[\]]/g, " ").replace(/\s+/g, " ").trim();
+    // Header labels are printed with punctuation the synonym list cannot carry
+    // every variant of: "Disc.", "Qty.", "Rate :", "Amount*", "Unit-". Left in
+    // place, "Disc." misses the anchored `^discount$` pattern entirely and the
+    // whole discount column is dropped — which is how a per-row discount
+    // stopped reaching the Sales Order. Strip the punctuation once, here.
+    const text = raw
+      .replace(/[()\[\]]/g, " ")
+      .replace(/[.*:;#]+\s*$/, "")
+      .replace(/\s+/g, " ")
+      .trim();
 
     let winner: { field: ItemField; score: number } | null = null;
     for (const p of PATTERNS) {
@@ -192,6 +201,16 @@ function headerMapFor(row: CellValue[]): { map: ColumnMap; score: number } | nul
   const hasNumeric = map.qty !== undefined || map.rate !== undefined || map.amount !== undefined;
   if (!hasDescription || !hasNumeric) return null;
   return { map, score };
+}
+
+/**
+ * Does this row open the item table? Used to bound the key/value header scan,
+ * which must never read *into* the table: a "Job" in a unit cell reads as the
+ * "job" label for a project name, and the quantity beside it then becomes the
+ * project.
+ */
+export function isTableHeaderRow(row: CellValue[]): boolean {
+  return headerMapFor(row) !== null;
 }
 
 /**
@@ -282,7 +301,11 @@ function textAt(row: CellValue[], col: number | undefined): string {
  * Items & Stocks master, so a make left behind in the description creates a
  * second stock line for a product that already exists.
  */
-const INLINE_MAKE = /[([]?\s*\b(?:make|makes|brand|brands|mfr|manufacturer)\b\s*[:\-–]\s*([^,;)\]]{1,40})[)\]]?/i;
+// The separator is optional and may be any of ":", ";", "-" or nothing at all
+// — real POs print "MAKE : JINDAL", "MAKE ; JINDAL" and "MAKE JINDAL" on
+// consecutive lines of the same document, and requiring a colon meant two of
+// those three kept the brand buried in the description.
+const INLINE_MAKE = /[([]?\s*\b(?:make|makes|brand|brands|mfr|manufacturer)\b\s*[:;\-–]?\s*([^,;)\]]{1,40})[)\]]?/i;
 
 /** A row that only names a make, printed under the item it applies to. */
 const MAKE_ONLY_ROW = /^\s*\b(?:make|makes|brand|brands|mfr|manufacturer)\b\s*[:\-–]\s*(.+)$/i;
@@ -311,14 +334,48 @@ export function normaliseMake(raw: string): string {
 export function splitInlineMake(description: string): { description: string; make: string } {
   const m = INLINE_MAKE.exec(description);
   if (!m) return { description, make: "" };
-  const make = normaliseMake(m[1] ?? "");
+
+  const captured = m[1] ?? "";
+  const brand = brandPrefixOf(captured);
+  const make = normaliseMake(brand);
   if (!make) return { description, make: "" };
-  const stripped = description
-    .replace(INLINE_MAKE, " ")
+
+  // Only the brand words are removed from the description. The capture runs to
+  // the next comma/bracket, so on "SS 316 PIPE 1'' MAKE : JINDAL SCH. 10" it
+  // reaches "JINDAL SCH. 10"; deleting all of that took the specification with
+  // it and left the make as "JINDAL SCH. 10". The tail after the brand is put
+  // back so the item keeps its spec and the stock key stays "pipe + Jindal".
+  const tail = captured.slice(brand.length).trim();
+  const stripped = (description.slice(0, m.index) + " " + tail + " " + description.slice(m.index + m[0].length))
     .replace(/\s{2,}/g, " ")
     .replace(/\s*[,;:\-–]\s*$/, "")
     .trim();
   return { description: stripped || description, make };
+}
+
+/** Spec words that end a brand phrase rather than continuing it. */
+const SPEC_WORD = /^(sch|schedule|class|type|grade|size|series|model|dia|nb|od|id|mm|cm|mtr|inch|inches|qty|nos|pn|is|astm|iso)\b/i;
+
+/**
+ * The brand part of an inline make capture.
+ *
+ * "MAKE : JINDAL SCH. 10" names one brand and then keeps describing the item.
+ * Words are taken while they still read as part of a brand name — so "L&T",
+ * "3M" and "Jindal Saw Pvt Ltd" survive, while a specification token (one
+ * carrying digits, or a spec keyword) ends the phrase.
+ */
+function brandPrefixOf(captured: string): string {
+  const tokens = captured.trim().split(/\s+/);
+  const taken: string[] = [];
+  for (const token of tokens) {
+    if (taken.length >= 4) break;
+    if (SPEC_WORD.test(token)) break;
+    // Digits are allowed only in the first word ("3M", "V-Guard"); after that
+    // a number belongs to the specification, not to the brand.
+    if (taken.length > 0 && /\d/.test(token)) break;
+    taken.push(token);
+  }
+  return taken.join(" ");
 }
 
 function numAt(row: CellValue[], col: number | undefined): number | null {
@@ -341,7 +398,10 @@ function readRow(row: CellValue[], table: Table, sheetName: string, index: numbe
   const nonEmpty = row.filter((c) => c !== null && cellText(c) !== "").length;
   if (nonEmpty === 0) return null;
 
-  const qty = numAt(row, map.qty);
+  // The quantity may carry its unit in the same cell ("2 Nos"); when it does
+  // and the table has no UOM column, that unit is what the row states.
+  const quantity = map.qty === undefined ? { value: null, unit: "" } : parseQuantity(row[map.qty] ?? null);
+  const qty = quantity.value;
   const rateRaw = numAt(row, map.rate);
   const amountRaw = numAt(row, map.amount);
 
@@ -368,6 +428,9 @@ function readRow(row: CellValue[], table: Table, sheetName: string, index: numbe
   let rate = rateRaw;
   let amount = amountRaw;
 
+  const discountCell = textAt(row, map.discount);
+  const discount = map.discount === undefined ? null : parseNumber(discountCell);
+
   // Derivation is allowed ONLY between the three figures the row itself
   // prints, and every derived value says so. Nothing is derived from another
   // row, a running total, or a document-level figure.
@@ -390,15 +453,18 @@ function readRow(row: CellValue[], table: Table, sheetName: string, index: numbe
   if (qty !== null && rate !== null && amountRaw !== null && amountRaw !== 0) {
     const computed = qty * rate;
     const tolerance = Math.max(1, Math.abs(amountRaw) * 0.01);
-    if (Math.abs(computed - amountRaw) > tolerance) {
+    // A row that prints a discount is *expected* to have qty x rate above its
+    // amount. Reporting that as a mismatch flagged every discounted row for
+    // review, which trains the reviewer to ignore the flag.
+    const discounted =
+      discount !== null && discount > 0 && discount < 100 && Math.abs(computed * (1 - discount / 100) - amountRaw) <= tolerance;
+    if (!discounted && Math.abs(computed - amountRaw) > tolerance) {
       reviewReasons.push(
         `Quantity × rate is ${round(computed, 2).toLocaleString("en-IN")} but the file prints ${amountRaw.toLocaleString("en-IN")}.`
       );
     }
   }
 
-  const discountCell = textAt(row, map.discount);
-  const discount = map.discount === undefined ? null : parseNumber(discountCell);
   const taxPct = numAt(row, map.taxPct);
 
   // The make column wins when the file has one; only if it is absent or empty
@@ -413,7 +479,7 @@ function readRow(row: CellValue[], table: Table, sheetName: string, index: numbe
     specification: textAt(row, map.specification),
     make: inline.make,
     code: textAt(row, map.code),
-    unit: textAt(row, map.unit),
+    unit: textAt(row, map.unit) || quantity.unit,
     qty,
     rate,
     amount,
@@ -427,12 +493,69 @@ function readRow(row: CellValue[], table: Table, sheetName: string, index: numbe
   };
 }
 
+/** "SECTION B - ELECTRICAL", "PART II", "Annexure 1". */
+const SECTION_HEADING = /^\s*(section|part|sub\s*-?\s*head|annexure|schedule|group|chapter)\b/i;
+
+/** Units printed on their own continuation line under the quantity. */
+const UNIT_ONLY = /^(nos?|pcs?|sets?|units?|each|pairs?|mtrs?|metres?|meters?|rmt|rft|ft|mm|cm|sq\.?\s?(ft|m|mtr)|sft|sqft|sqm|cft|cum|kgs?|tons?|mt|ltrs?|litres?|lot|ls|job)$/i;
+
+/**
+ * Folds a wrapped continuation line into the item it belongs to.
+ *
+ * Nothing here can overwrite a value the item already read — a continuation
+ * line only ever *adds* the specification text and the unit the product row
+ * itself did not print.
+ */
+function appendContinuation(row: CellValue[], table: Table, previous: ExtractedRow): "folded" | "ended" {
+  // Any figure at all means this is not a continuation line; leaving it alone
+  // is what stops a totals row being glued onto the last product.
+  for (const cell of row) {
+    if (parseNumber(cell) !== null) return "ended";
+  }
+
+  // Only the table's own columns are folded in. Page furniture — "Notes",
+  // "POWERED BY", a shipping address, a signature line — is printed outside
+  // them, and folding it produced a last item whose name ran on for three
+  // lines of boilerplate.
+  const columns = [table.map.description, table.map.specification, table.map.make, table.map.unit, table.map.qty];
+  const outside = row.some((c, i) => cellText(c) && !columns.includes(i));
+  if (outside) return "ended";
+
+  const texts = columns.map((c) => textAt(row, c)).filter(Boolean);
+  if (!texts.length) return "ended";
+
+  for (const text of texts) {
+    if (TOTAL_ROW.test(text) || FURNITURE_ROW.test(text) || SETTLEMENT_ROW.test(text)) return "ended";
+    // A section heading introduces the rows below it; it is not part of the
+    // item above.
+    if (SECTION_HEADING.test(text)) return "ended";
+  }
+
+  for (const text of texts) {
+    if (UNIT_ONLY.test(text)) {
+      if (!previous.unit) previous.unit = text;
+      continue;
+    }
+    // "MAKE : JINDAL SAW" under the item names its brand, and is already
+    // handled by the caller for the first such line; a later one adds nothing.
+    const makeOnly = MAKE_ONLY_ROW.exec(text);
+    if (makeOnly) {
+      if (!previous.make) previous.make = normaliseMake(makeOnly[1] ?? "");
+      continue;
+    }
+    if (previous.description.includes(text)) continue;
+    previous.description = `${previous.description} ${text}`.replace(/\s+/g, " ").trim().slice(0, 300);
+  }
+  return "folded";
+}
+
 /** Extracts every product row from every table on every sheet. */
 export function extractRowsFromWorkbook(workbook: WorkbookGrid): TableExtractionResult {
   const rows: ExtractedRow[] = [];
   const headers: string[][] = [];
   const warnings: string[] = [];
   let tableCount = 0;
+  const stitchWrappedRows = workbook.kind === "pdf";
 
   for (const sheet of workbook.sheets) {
     const tables = findTables(sheet);
@@ -461,6 +584,21 @@ export function extractRowsFromWorkbook(workbook: WorkbookGrid): TableExtraction
         if (item) {
           rows.push(item);
           previous = item;
+          continue;
+        }
+
+        // A wrapped item: the second and third printed lines of one product
+        // ("SCH. 10", and the unit "MTR" under the quantity). They carry no
+        // figures of their own, so readRow discards them — and the item then
+        // reaches the Sales Order missing half its name and its unit. Folded
+        // into the item above instead.
+        // Once a non-continuation line is reached the item is closed, so a
+        // later stray line cannot attach itself to it from further down the
+        // page. Only a PDF page can split one item across rows — in a real
+        // spreadsheet a row is an item, and a text-only row there is a section
+        // heading, not the tail of the product above it.
+        if (stitchWrappedRows && previous && appendContinuation(row, table, previous) === "ended") {
+          previous = null;
         }
       }
     }

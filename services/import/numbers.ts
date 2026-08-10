@@ -45,8 +45,15 @@ export function parseNumber(input: unknown): number | null {
   let text = String(input).trim();
   if (!text) return null;
 
-  // Accounting negatives: (1,250) and 1,250- both mean -1250.
+  // Accounting negatives: (1,250) and 1,250- both mean -1250, and a totals
+  // block writes a deduction as "(-) 3,44,251.50". Left unhandled, that last
+  // form parses as nothing at all — which is why a PO's discount line was read
+  // as having no amount.
   let negative = false;
+  if (/^\(\s*-\s*\)/.test(text)) {
+    negative = true;
+    text = text.replace(/^\(\s*-\s*\)/, "").trim();
+  }
   if (/^\(.*\)$/.test(text)) {
     negative = true;
     text = text.slice(1, -1).trim();
@@ -109,6 +116,35 @@ export function parseNumber(input: unknown): number | null {
   const value = Number(normalised);
   if (!Number.isFinite(value)) return null;
   return negative ? -value : value;
+}
+
+/**
+ * Units a quantity cell is routinely printed with: "2 Nos", "6.10 Mtr",
+ * "120 RMT". The list is closed on purpose — a quantity column that happens to
+ * hold "4 Core Cable" must still come back null rather than read as 4.
+ */
+const UNIT_SUFFIX =
+  /^(nos?|pcs?|pieces?|sets?|units?|each|pairs?|rolls?|coils?|bags?|boxe?s?|lots?|ls|job|jobs|mtrs?|metres?|meters?|m|rmt|rft|ft|feet|inch(es)?|mm|cm|km|sq\.?\s?(ft|mt?r?|m)|sft|sqft|sqm|cft|cum|cbm|kgs?|kilograms?|gms?|tons?|mt|ltrs?|litres?|liters?|l)$/i;
+
+/**
+ * A quantity cell, which — unlike a rate — is frequently printed with its unit
+ * in the same cell. Returns the number and the unit that accompanied it, so a
+ * table with no separate UOM column still yields both.
+ *
+ * Without this, "2 Nos" parses to null and the row reaches the Sales Order
+ * with a quantity of zero.
+ */
+export function parseQuantity(input: unknown): { value: number | null; unit: string } {
+  const direct = parseNumber(input);
+  if (direct !== null) return { value: direct, unit: "" };
+  if (typeof input !== "string") return { value: null, unit: "" };
+
+  const m = input.trim().match(/^([^A-Za-z]+)\s*([A-Za-z.\s]+)$/);
+  if (!m) return { value: null, unit: "" };
+  const unit = m[2]!.trim().replace(/\.$/, "");
+  if (!UNIT_SUFFIX.test(unit)) return { value: null, unit: "" };
+  const value = parseNumber(m[1]);
+  return value === null ? { value: null, unit: "" } : { value, unit };
 }
 
 /** parseNumber, but only accepts a value strictly greater than zero. */

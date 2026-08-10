@@ -377,7 +377,7 @@ async function localOrderResult(
       discountAmount: parsed?.discountAmount ?? 0,
       discountNote: "",
       ratesAreGstInclusive: false,
-      documentTotal: 0,
+      documentTotal: parsed?.documentTotal ?? 0,
       remarks: "",
       items,
     },
@@ -458,6 +458,23 @@ function localClassification(doc: IngestedDocument, fileName: string): AiClassif
   };
 }
 
+/**
+ * Is a table read good enough to be preferred over asking a model to read the
+ * document?
+ *
+ * The geometric reader either recovers a table cleanly or it does not. A
+ * partial read — rows without rates, a handful of lines out of a fifty-row BOQ
+ * — means the layout defeated it, and there the AI chain does better. Demanding
+ * that nearly every row carry a quantity and a rate is what keeps a half-read
+ * table from displacing a good extraction.
+ */
+function isConfidentTableRead(result: AiOrderResult): boolean {
+  const items = result.extractedData.items;
+  if (items.length === 0) return false;
+  const complete = items.filter((it) => it.qty > 0 && it.rate > 0).length;
+  return complete / items.length >= 0.8;
+}
+
 // ------------------------------------------------------------- fallback core
 
 function validateAs<T>(schema: { safeParse: (v: unknown) => { success: boolean; data?: T } }, raw: unknown): T {
@@ -506,6 +523,25 @@ export async function extractOrderWithFallback(
     const outcome = buildOrderFromWorkbook(doc.workbook, fileName);
     if (outcome.usable) {
       return { result: outcome.result, usage: usageFor("structured-spreadsheet") };
+    }
+  }
+
+  // A digital PDF that draws a real table is structured data too. Its cells
+  // are recovered by geometry (services/import/pdfTable.ts) and then read by
+  // the same column logic as a spreadsheet, so the figures come from where
+  // they are printed instead of being transcribed. Transcription is where
+  // wrong rates and mismatched product/price pairs came from, so it is only
+  // used when no table can be recovered — the gate below — in which case the
+  // AI chain runs exactly as before.
+  if (mimeType === "application/pdf" && doc.sourceKind === "pdf-digital") {
+    try {
+      const grid = await readPdfAsGrid(buffer);
+      const outcome = buildOrderFromWorkbook(grid, fileName);
+      if (isConfidentTableRead(outcome.result)) {
+        return { result: outcome.result, usage: usageFor("structured-pdf-table") };
+      }
+    } catch (err) {
+      console.warn("[ai] structured PDF table read failed, continuing to the AI chain:", err);
     }
   }
 

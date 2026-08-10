@@ -112,6 +112,8 @@ function toRows(runs: Run[]): Run[][] {
 interface Cell {
   text: string;
   x: number;
+  /** Right edge — right-aligned columns cluster on this, not on `x`. */
+  end: number;
 }
 
 /** Merges runs separated by less than a cell gap back into one cell. */
@@ -126,37 +128,79 @@ function toCells(row: Run[]): Cell[] {
       current.end = run.x + run.width;
       continue;
     }
-    if (current) cells.push({ text: current.parts.join("").replace(/\s+/g, " ").trim(), x: current.x });
+    if (current) cells.push({ text: current.parts.join("").replace(/\s+/g, " ").trim(), x: current.x, end: current.end });
     current = { parts: [run.text], x: run.x, end: run.x + run.width };
   }
-  if (current) cells.push({ text: current.parts.join("").replace(/\s+/g, " ").trim(), x: current.x });
+  if (current) cells.push({ text: current.parts.join("").replace(/\s+/g, " ").trim(), x: current.x, end: current.end });
   return cells.filter((c) => c.text);
 }
 
-/**
- * Derives the page's column positions from where cells actually start.
- *
- * Done per page rather than per row so that a row missing a value keeps an
- * empty slot in that column instead of pulling every later value leftwards.
- */
-function columnStops(rows: Cell[][]): number[] {
-  const xs = rows.flatMap((r) => r.map((c) => c.x)).sort((a, b) => a - b);
-  const stops: number[] = [];
-  for (const x of xs) {
-    const last = stops[stops.length - 1];
-    if (last === undefined || x - last > COLUMN_TOLERANCE) stops.push(x);
-  }
-  return stops;
+interface Column {
+  /** Representative left edge, and right edge, in PDF points. */
+  start: number;
+  end: number;
 }
 
-function assignColumns(cells: Cell[], stops: number[]): CellValue[] {
-  const out: CellValue[] = new Array(stops.length).fill(null);
+/**
+ * Derives the page's columns from where cells actually sit.
+ *
+ * Clustering on the left edge alone — which this did — is correct for text and
+ * wrong for money. Amount, rate and quantity columns are **right-aligned**, so
+ * "6.10" and "335.50" begin at different x positions and were filed as two
+ * different columns; the header "Qty" then matched only whichever rows happened
+ * to start where it did, and every other row reached the Sales Order with a
+ * quantity of zero. That is the single biggest cause of wrong figures from a
+ * PDF.
+ *
+ * A cell therefore joins a column when EITHER edge lines up with it, which is
+ * what makes a left-aligned and a right-aligned column each cluster correctly
+ * on the same page.
+ */
+function columnsFor(rows: Cell[][]): Column[] {
+  const cells = rows.flat().sort((a, b) => a.x - b.x);
+  const clusters: { start: number; end: number; members: Cell[] }[] = [];
+
   for (const cell of cells) {
-    // Nearest stop at or before the cell's start; ties go to the closer stop.
+    const match = clusters.find(
+      (c) => Math.abs(c.start - cell.x) <= COLUMN_TOLERANCE || Math.abs(c.end - cell.end) <= COLUMN_TOLERANCE
+    );
+    if (match) {
+      // The extremes are kept for matching, so a wider value later on the page
+      // still lands in the column it belongs to.
+      match.start = Math.min(match.start, cell.x);
+      match.end = Math.max(match.end, cell.end);
+      match.members.push(cell);
+      continue;
+    }
+    clusters.push({ start: cell.x, end: cell.end, members: [cell] });
+  }
+
+  // Order and match on the MEDIAN edges, not the extremes. A page title or a
+  // date that happens to end level with the Amount column joins it — harmless
+  // in itself, but it drags that column's leftmost edge across the Qty and
+  // Rate columns, and ordering by the extreme then puts Amount *before* Qty.
+  // The columns come out shuffled, the header row no longer lines up with its
+  // own figures, and quantities land under "Amount". A median ignores those
+  // few outliers.
+  return clusters
+    .map((c) => ({ start: median(c.members.map((m) => m.x)), end: median(c.members.map((m) => m.end)) }))
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+}
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
+}
+
+function assignColumns(cells: Cell[], columns: Column[]): CellValue[] {
+  const out: CellValue[] = new Array(columns.length).fill(null);
+  for (const cell of cells) {
+    // Best match on either edge — the same rule the columns were built with.
     let index = 0;
     let bestDistance = Infinity;
-    stops.forEach((stop, i) => {
-      const distance = Math.abs(stop - cell.x);
+    columns.forEach((column, i) => {
+      const distance = Math.min(Math.abs(column.start - cell.x), Math.abs(column.end - cell.end));
       if (distance < bestDistance) {
         bestDistance = distance;
         index = i;
@@ -176,10 +220,10 @@ export async function readPdfAsGrid(buffer: Buffer): Promise<WorkbookGrid> {
   pages.forEach((runs, i) => {
     if (!runs.length) return;
     const cellRows = toRows(runs).map(toCells);
-    const stops = columnStops(cellRows);
-    const rows = cellRows.map((cells) => assignColumns(cells, stops));
+    const columns = columnsFor(cellRows);
+    const rows = cellRows.map((cells) => assignColumns(cells, columns));
     if (rows.length) sheets.push({ name: `Page ${i + 1}`, rows });
   });
 
-  return { sheets, kind: "xlsx" };
+  return { sheets, kind: "pdf" };
 }

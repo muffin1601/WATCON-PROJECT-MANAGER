@@ -79,6 +79,23 @@ function parseHeaderFields(rawText: string, result: ExtractedOrderInput): void {
     break;
   }
 
+  // The document's own grand total, from its totals block. Without this the
+  // form had nothing to cross-check the drafted items against, and the
+  // "documentTotal" it reported for a PDF was always zero.
+  const TOTAL_LINE = [
+    /^(?:grand\s*total|net\s*payable|total\s*payable)\b[^\d-]*([\d,]+(?:\.\d+)?)/i,
+    /^(?:total\s*amount|net\s*amount|order\s*value)\b[^\d-]*([\d,]+(?:\.\d+)?)/i,
+    /^total\b[^\d-]*([\d,]+(?:\.\d+)?)/i,
+  ];
+  for (const pattern of TOTAL_LINE) {
+    const line = lines.find((l) => pattern.test(l) && !/in\s*words|sub\s*total/i.test(l));
+    const amount = line ? toNumber(line.match(pattern)![1] ?? "") : null;
+    if (amount !== null && amount > 0) {
+      result.documentTotal = amount;
+      break;
+    }
+  }
+
   if (/transport\s*(extra|at actuals)/i.test(rawText)) result.terms.transport = "extra";
   else if (/transport\s*(incl|included|free)/i.test(rawText)) result.terms.transport = "included";
 
