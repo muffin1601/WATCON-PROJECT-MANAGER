@@ -526,14 +526,21 @@ export async function extractOrderWithFallback(
     }
   }
 
-  // A digital PDF that draws a real table is structured data too. Its cells
-  // are recovered by geometry (services/import/pdfTable.ts) and then read by
-  // the same column logic as a spreadsheet, so the figures come from where
-  // they are printed instead of being transcribed. Transcription is where
-  // wrong rates and mismatched product/price pairs came from, so it is only
-  // used when no table can be recovered — the gate below — in which case the
-  // AI chain runs exactly as before.
-  if (mimeType === "application/pdf" && doc.sourceKind === "pdf-digital") {
+  // A digital PDF that draws a real table can sometimes be recovered by
+  // geometry (services/import/pdfTable.ts) and read by the same column logic
+  // as a spreadsheet. Unlike a spreadsheet, though, a PDF has no cells — the
+  // reader infers them from glyph positions, and on a real Work Order that
+  // inference goes wrong in ways it cannot detect: 15 pages of terms before
+  // the BOQ starts, section headings and "Design Details" narrative that look
+  // like rows, "RO" quantities, blank amount cells, and two annexures with
+  // their own totals. Rows whose qty and rate happen to be populated still
+  // pass the confidence gate, so a wrong read looks exactly like a right one.
+  //
+  // So this path is now a FALLBACK, not a shortcut: when an AI engine is
+  // configured it reads the PDF (it sees the page layout and the embedded text
+  // layer together, and it is told which rows are not items). The geometric
+  // reader is used only when there is no AI engine to fall back from.
+  if (!isAiConfigured() && mimeType === "application/pdf" && doc.sourceKind === "pdf-digital") {
     try {
       const grid = await readPdfAsGrid(buffer);
       const outcome = buildOrderFromWorkbook(grid, fileName);
