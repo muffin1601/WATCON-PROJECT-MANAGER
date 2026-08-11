@@ -1,5 +1,12 @@
 import { AiExtractionError, type ExtractionUsage } from "./client";
-import { extractOrderDocument, extractChallanDocument, classifyDocument, reconcileOrderTotals, type ExtractionOutcome } from "./extract";
+import {
+  extractOrderDocument,
+  extractOrderChunkDocument,
+  extractChallanDocument,
+  classifyDocument,
+  reconcileOrderTotals,
+  type ExtractionOutcome,
+} from "./extract";
 import type { IngestedDocument } from "./ingest";
 import { isAiConfigured } from "./config";
 import { parseOrderFromBuffer } from "../import/orderParser";
@@ -12,6 +19,7 @@ import { itemsFromOcrText } from "./ocrRows";
 import {
   ORDER_SYSTEM_PROMPT,
   ORDER_TASK_TEXT,
+  orderChunkTaskText,
   CHALLAN_SYSTEM_PROMPT,
   CHALLAN_TASK_TEXT,
   CLASSIFY_SYSTEM_PROMPT,
@@ -575,6 +583,52 @@ export async function extractOrderWithFallback(
       return { result: reconcileOrderTotals(validateAs(aiOrderResultSchema, data)), usage };
     },
     local: async () => ({ result: await localOrderResult(doc, buffer, mimeType), usage: usageFor("local-parser") }),
+  });
+}
+
+/**
+ * One page-range slice of a long order document, through the same engine
+ * chain.
+ *
+ * The structured-table shortcuts used by `extractOrderWithFallback` are
+ * deliberately absent: chunking only happens for long PDFs on the AI path, and
+ * a slice that begins mid-table is precisely the case the geometric reader
+ * handles worst — it has no header row to key its columns from.
+ *
+ * There is no local-engine entry either. A chunked read is only reached when
+ * an AI engine is configured; if every engine fails on a slice, the job fails
+ * with a clear message rather than silently returning a partial document
+ * assembled from whatever the line heuristics could recover.
+ */
+export async function extractOrderChunkWithFallback(
+  doc: IngestedDocument,
+  range: { startPage: number; endPage: number; totalPages: number },
+  fileName: string
+): Promise<ExtractionOutcome<AiOrderResult>> {
+  const task = orderChunkTaskText(range.startPage, range.endPage, range.totalPages);
+
+  return withFallback<AiOrderResult>({
+    anthropic: () => extractOrderChunkDocument(doc, range),
+    openai: async () => {
+      const { data, usage } = await callOpenAi<unknown>({
+        system: ORDER_SYSTEM_PROMPT,
+        task,
+        doc,
+        fileName,
+        schema: ORDER_JSON_SCHEMA as unknown as Record<string, unknown>,
+        schemaName: "order_extraction",
+      });
+      return { result: validateAs(aiOrderResultSchema, data), usage };
+    },
+    gemini: async () => {
+      const { data, usage } = await callGemini<unknown>({
+        system: ORDER_SYSTEM_PROMPT,
+        task,
+        doc,
+        schema: ORDER_JSON_SCHEMA as unknown as Record<string, unknown>,
+      });
+      return { result: validateAs(aiOrderResultSchema, data), usage };
+    },
   });
 }
 

@@ -97,6 +97,33 @@ Judge from headings, the wording of the title block, and whether rates and a pay
 export const ORDER_TASK_TEXT =
   "Extract this document completely, following every rule you were given. Return every billable item from every page.";
 
+/**
+ * User-turn instruction for one page-range slice of a long document.
+ *
+ * Kept out of the system prompt on purpose: the page numbers change per call,
+ * and interpolating them above would break the cached prefix for every chunk
+ * (see the note at the top of this file).
+ *
+ * The two failure modes this text exists to prevent, both specific to reading
+ * a slice rather than a whole document:
+ *
+ *  - A slice that begins mid-table carries no column header row. Without being
+ *    told that, the model can mistake the first data row for a header, or
+ *    infer the wrong column meanings and return a quantity as a rate.
+ *  - A slice of interior pages has no title block, so the model may either
+ *    invent header fields or flag the document as unreadable. It must instead
+ *    leave them empty and let the covering pages supply them.
+ */
+export function orderChunkTaskText(startPage: number, endPage: number, totalPages: number): string {
+  return [
+    `You are reading pages ${startPage} to ${endPage} of a ${totalPages}-page document. Other pages are read separately and their rows are added to yours, so return ONLY what is printed on these pages.`,
+    `The table almost certainly continues from an earlier page and onto a later one. Its column header row may not appear on these pages at all — work out what each column means from the values themselves and their alignment, exactly as the reading rules describe. Do not treat the first row you see as a header unless it plainly is one, and do not skip a row merely because it is the first or last on a page.`,
+    `Set \`sourcePage\` to the real page number in the whole document (these pages are ${startPage} to ${endPage}), not its position within this extract.`,
+    `Header fields — poNumber, poDate, clientName, vendorName, project and site details, terms, discounts and documentTotal — must be filled in ONLY if they are printed on these pages. If they are not, return "" or 0 and say nothing about them; the pages that carry them are handled elsewhere. Do not infer them, and do not report their absence as a problem.`,
+    `Return every billable item row on these pages, following every rule you were given.`,
+  ].join("\n\n");
+}
+
 export const CHALLAN_TASK_TEXT =
   "Extract this delivery challan completely, following every rule you were given. Return every goods line from every page.";
 

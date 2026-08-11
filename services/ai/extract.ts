@@ -4,6 +4,7 @@ import type { IngestedDocument } from "./ingest";
 import {
   ORDER_SYSTEM_PROMPT,
   ORDER_TASK_TEXT,
+  orderChunkTaskText,
   CHALLAN_SYSTEM_PROMPT,
   CHALLAN_TASK_TEXT,
   CLASSIFY_SYSTEM_PROMPT,
@@ -81,6 +82,33 @@ export async function extractOrderDocument(
 
   const result = parseOrThrow<AiOrderResult>(aiOrderResultSchema, data);
   return { result: reconcileOrderTotals(result), usage };
+}
+
+/**
+ * Extraction of one page-range slice of a long order document.
+ *
+ * Deliberately does NOT reconcile totals: a slice's item rows are only part of
+ * the document, so comparing their sum to the stated contract value would
+ * raise a mismatch on every chunk. Reconciliation happens once, on the merged
+ * result (see services/ai/jobs.ts).
+ */
+export async function extractOrderChunkDocument(
+  doc: IngestedDocument,
+  range: { startPage: number; endPage: number; totalPages: number },
+  documentClass: "BOQ" | "PURCHASE_ORDER" = "PURCHASE_ORDER"
+): Promise<ExtractionOutcome<AiOrderResult>> {
+  const { data, usage } = await runExtraction<unknown>({
+    system: ORDER_SYSTEM_PROMPT,
+    content: [
+      ...doc.blocks,
+      { type: "text", text: orderChunkTaskText(range.startPage, range.endPage, range.totalPages) },
+    ],
+    schema: ORDER_JSON_SCHEMA as unknown as Record<string, unknown>,
+    model: modelForDocument(documentClass),
+    effort: effortForDocument(documentClass),
+  });
+
+  return { result: parseOrThrow<AiOrderResult>(aiOrderResultSchema, data), usage };
 }
 
 /** Full extraction of a delivery challan. */

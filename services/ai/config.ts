@@ -39,17 +39,16 @@ export const MAX_AI_FILE_BYTES = 20 * 1024 * 1024;
 export const MAX_OUTPUT_TOKENS = 64_000;
 
 /**
- * Effort tuning. The small, well-structured challan runs at `low`.
+ * Effort tuning. Extraction is a careful-reading task rather than an
+ * open-ended reasoning one, so `medium` matches quality at materially lower
+ * token spend; the small, well-structured challan runs at `low`.
  *
- * Orders and BOQs run at `high`. `medium` was chosen when extraction was
- * framed as pure transcription, but a real Work Order is not: deciding which
- * of 40 pages carry billable rows, following a table across a page break,
- * applying a section discount, and separating a design-detail row from an item
- * are judgment calls, and that is exactly what effort buys. A wrong rate on a
- * Rs 6.85 crore contract costs far more than the extra tokens.
+ * `high` was tried and reverted: on a 40-page Work Order it added minutes of
+ * latency for no measured accuracy gain, and the serverless function's
+ * duration cap is the binding constraint on this path, not token cost.
  */
 export function effortForDocument(kind: DocumentClass): "low" | "medium" | "high" {
-  return kind === "CHALLAN" ? "low" : "high";
+  return kind === "CHALLAN" ? "low" : "medium";
 }
 
 /**

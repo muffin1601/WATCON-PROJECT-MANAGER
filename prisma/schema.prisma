@@ -693,8 +693,25 @@ model ExtractionJob {
   errorMessage String?
   attempts     Int     @default(0)
 
+  // Chunked reading (services/ai/chunking.ts). A long PDF cannot be read in
+  // one serverless invocation, so it is sliced into page ranges that are read
+  // one per invocation and reassembled here. 0 totalChunks means the document
+  // was short enough to read in a single call — the original path.
+  totalChunks  Int     @default(0)
+  chunksDone   Int     @default(0)
+  // Storage paths of the staged page slices, in page order. Removed once the
+  // job reaches a terminal state.
+  chunkPaths   Json?
+  // Per-chunk AiOrderResults accumulated so far, merged when the last chunk
+  // lands. Held here rather than in memory because each chunk runs in a
+  // different invocation with no shared state.
+  chunkResults Json?
+
   createdAt   DateTime  @default(now())
   startedAt   DateTime?
+  // Bumped as each chunk completes. Distinguishes a job that is slow from one
+  // whose invocation was killed, which `createdAt` alone cannot do.
+  heartbeatAt DateTime?
   completedAt DateTime?
 
   @@index([projectId])

@@ -24,6 +24,14 @@ export interface ExtractionJobState {
   detectedType: string | null;
   errorMessage: string | null;
   result: unknown;
+  /**
+   * Chunked reads only. A long PDF is read one page range per request because
+   * no single serverless invocation can finish the whole document; the poll
+   * loop below kicks off each next range. Both are 0 for documents short
+   * enough to be read in one call.
+   */
+  totalChunks: number;
+  chunksDone: number;
 }
 
 export type ExtractionPhase =
@@ -75,6 +83,12 @@ export function useExtractionJob() {
 
   /** Polls until terminal, then settles exactly once with the job or null. */
   const poll = useCallback((jobId: string, settle: (job: ExtractionJobState | null) => void) => {
+    // Page ranges already asked for. A chunk takes far longer than the poll
+    // interval, so without this every tick would fire another request for the
+    // range already in flight — the same pages read several times over, at
+    // several times the cost.
+    const requested = new Set<number>();
+
     const tick = async () => {
       if (cancelled.current) {
         settle(null);
@@ -103,6 +117,27 @@ export function useExtractionJob() {
         }
 
         setPhase({ status: "running", job });
+
+        // Drive the next page range of a chunked read. Keyed on chunksDone so
+        // each range is requested exactly once; the server is idempotent
+        // anyway, but a duplicate would still cost a full extra model call.
+        if (job.totalChunks > 0 && job.chunksDone < job.totalChunks && !requested.has(job.chunksDone)) {
+          requested.add(job.chunksDone);
+          // Deliberately not awaited: this request stays open for the whole
+          // chunk, and awaiting it would stall the poll loop that renders
+          // progress. Failures surface through the job row, which the next
+          // tick reads.
+          void fetch("/api/ai/extract/continue", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ jobId }),
+          }).catch(() => {
+            // Let the poll loop retry this range on a later tick rather than
+            // failing the whole extraction on one dropped request.
+            requested.delete(job.chunksDone);
+          });
+        }
+
         timer.current = setTimeout(tick, POLL_INTERVAL_MS);
       } catch (err) {
         if (!cancelled.current) {
@@ -142,6 +177,8 @@ export function useExtractionJob() {
           detectedType: null,
           errorMessage: null,
           result: null,
+          totalChunks: 0,
+          chunksDone: 0,
         },
       });
 
