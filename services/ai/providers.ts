@@ -8,7 +8,7 @@ import {
   type ExtractionOutcome,
 } from "./extract";
 import type { IngestedDocument } from "./ingest";
-import { isAiConfigured } from "./config";
+import { FAST_PDF_MODE, isAiConfigured } from "./config";
 import { parseOrderFromBuffer } from "../import/orderParser";
 import { buildOrderFromWorkbook } from "../import/spreadsheetOrder";
 import { buildChallanFromWorkbook } from "../import/spreadsheetChallan";
@@ -544,11 +544,10 @@ export async function extractOrderWithFallback(
   // their own totals. Rows whose qty and rate happen to be populated still
   // pass the confidence gate, so a wrong read looks exactly like a right one.
   //
-  // So this path is now a FALLBACK, not a shortcut: when an AI engine is
-  // configured it reads the PDF (it sees the page layout and the embedded text
-  // layer together, and it is told which rows are not items). The geometric
-  // reader is used only when there is no AI engine to fall back from.
-  if (!isAiConfigured() && mimeType === "application/pdf" && doc.sourceKind === "pdf-digital") {
+  // On Vercel, this path becomes a shortcut: a full AI pass over PDFs is the
+  // common timeout culprit, so use the deterministic reader first and avoid
+  // the slow model fallback when FAST_PDF_MODE is enabled.
+  if ((!isAiConfigured() || FAST_PDF_MODE) && mimeType === "application/pdf" && doc.sourceKind === "pdf-digital") {
     try {
       const grid = await readPdfAsGrid(buffer);
       const outcome = buildOrderFromWorkbook(grid, fileName);
@@ -557,6 +556,9 @@ export async function extractOrderWithFallback(
       }
     } catch (err) {
       console.warn("[ai] structured PDF table read failed, continuing to the AI chain:", err);
+    }
+    if (FAST_PDF_MODE) {
+      return { result: await localOrderResult(doc, buffer, mimeType), usage: usageFor("local-parser-fast-pdf") };
     }
   }
 

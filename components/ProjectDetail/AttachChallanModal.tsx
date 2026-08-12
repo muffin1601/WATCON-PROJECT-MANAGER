@@ -167,7 +167,7 @@ export function AttachChallanModal({
       <p style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 8 }}>
         Attach the challan copy (PDF or image) — it is read automatically and the entries below are filled in for you.
         If you enter the value above, it is added to &quot;material sent&quot;. Quantities linked to sales order items
-        below are picked up by running bills automatically. Auto-read upload limit: {formatUploadLimit(MAX_AI_UPLOAD_BYTES)}.
+        below are picked up by running bills automatically. Auto-read upload limit: below {formatUploadLimit(MAX_AI_UPLOAD_BYTES)}.
       </p>
       <input
         type="file"

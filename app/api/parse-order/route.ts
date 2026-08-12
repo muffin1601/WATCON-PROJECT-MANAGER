@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { parseOrderFromBuffer } from "../../../services/import/orderParser";
 import { EncryptedPdfError, CorruptPdfError } from "../../../services/ocr/pdfText";
 import { MAX_FILE_SIZE_BYTES } from "../../../modules/documents/schema";
+import { formatUploadLimit } from "../../../modules/documents/uploadLimits";
 
 // Stateless auto-read used by the New Project form: takes the attached
 // PO/BOQ file, returns best-effort extracted fields + items WITHOUT
@@ -13,7 +14,7 @@ export async function POST(req: NextRequest) {
     const file = form.get("file");
     if (!(file instanceof File)) return NextResponse.json({ error: "No file provided" }, { status: 400 });
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      return NextResponse.json({ error: "File is larger than 25 MB." }, { status: 400 });
+      return NextResponse.json({ error: `File must be below ${formatUploadLimit(MAX_FILE_SIZE_BYTES)}.` }, { status: 400 });
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());

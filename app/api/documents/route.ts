@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: err.message }, { status: 400 });
     }
     const message = err instanceof Error ? err.message : "Upload failed";
-    const status = message.startsWith("No such") ? 404 : message.startsWith("Unsupported") || message.includes("25 MB") ? 400 : 500;
+    const status = message.startsWith("No such") ? 404 : message.startsWith("Unsupported") || message.includes("below") ? 400 : 500;
     if (status === 500) console.error(err);
     return NextResponse.json({ error: message }, { status });
   }

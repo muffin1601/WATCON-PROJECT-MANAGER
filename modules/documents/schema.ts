@@ -34,13 +34,13 @@ export const ALLOWED_MIME_TYPES = new Set([
   "application/x-zip-compressed",
 ]);
 
-export const MAX_FILE_SIZE_BYTES = MAX_DOCUMENT_UPLOAD_BYTES; // 25 MB, matches the OCR upload limit noted in the prototype
+export const MAX_FILE_SIZE_BYTES = MAX_DOCUMENT_UPLOAD_BYTES;
 
 export function assertValidUpload(file: { type: string; size: number }) {
   if (!ALLOWED_MIME_TYPES.has(file.type)) {
     throw new Error("Unsupported file type. Allowed: PDF, DOCX, XLSX, PNG, JPG, JPEG, ZIP.");
   }
   if (file.size > MAX_FILE_SIZE_BYTES) {
-    throw new Error(`File is larger than ${formatUploadLimit(MAX_FILE_SIZE_BYTES)}.`);
+    throw new Error(`File must be below ${formatUploadLimit(MAX_FILE_SIZE_BYTES)}.`);
   }
 }

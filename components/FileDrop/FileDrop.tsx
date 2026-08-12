@@ -20,7 +20,7 @@ export function FileDrop({ children, accept, maxSizeBytes = MAX_DOCUMENT_UPLOAD_
 
   const pickFile = (file: File) => {
     if (file.size > maxSizeBytes) {
-      setError(`File is larger than ${formatUploadLimit(maxSizeBytes)}.`);
+      setError(`File must be below ${formatUploadLimit(maxSizeBytes)}.`);
       return;
     }
     setError(null);
@@ -46,7 +46,7 @@ export function FileDrop({ children, accept, maxSizeBytes = MAX_DOCUMENT_UPLOAD_
       onDrop={onDrop}
     >
       {children}
-      {maxSizeBytes > 0 && <div className={styles.limit}>Maximum file size: {formatUploadLimit(maxSizeBytes)}</div>}
+      {maxSizeBytes > 0 && <div className={styles.limit}>Maximum file size: below {formatUploadLimit(maxSizeBytes)}</div>}
       {error && <div className={styles.error}>{error}</div>}
       <input
         ref={inputRef}

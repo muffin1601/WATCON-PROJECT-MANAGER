@@ -185,7 +185,7 @@ export function PaymentsTab({ project }: { project: ProjectViewModel }) {
               accept="application/pdf,image/*"
               onChange={(e) => pickUploadFile(e.target.files?.[0], setProofFile, toast)}
             />
-            <p className="note">Maximum file size: {formatUploadLimit(MAX_DOCUMENT_UPLOAD_BYTES)}</p>
+            <p className="note">Maximum file size: below {formatUploadLimit(MAX_DOCUMENT_UPLOAD_BYTES)}</p>
           </FormField>
         </Modal>
       )}

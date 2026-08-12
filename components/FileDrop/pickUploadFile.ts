@@ -8,7 +8,7 @@ export function pickUploadFile(
 ) {
   if (!file) return;
   if (file.size > maxSizeBytes) {
-    onError(`File is larger than ${formatUploadLimit(maxSizeBytes)}.`);
+    onError(`File must be below ${formatUploadLimit(maxSizeBytes)}.`);
     return;
   }
   onFile(file);

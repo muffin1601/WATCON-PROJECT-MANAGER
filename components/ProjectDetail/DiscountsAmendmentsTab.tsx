@@ -222,7 +222,7 @@ export function DiscountsAmendmentsTab({ project }: { project: ProjectViewModel 
           </FormField>
           <FormField label="Approval copy (PO amendment / email / WhatsApp)">
             <input type="file" accept="application/pdf,image/*" onChange={(e) => pickUploadFile(e.target.files?.[0], setAmFile, toast)} />
-            <p className="note">Maximum file size: {formatUploadLimit(MAX_DOCUMENT_UPLOAD_BYTES)}</p>
+            <p className="note">Maximum file size: below {formatUploadLimit(MAX_DOCUMENT_UPLOAD_BYTES)}</p>
           </FormField>
         </Modal>
       )}

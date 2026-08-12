@@ -2,7 +2,7 @@ import "../ocr/domPolyfill";
 import { PDFParse, PasswordException, InvalidPDFException } from "pdf-parse";
 import type { ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import { EncryptedPdfError, CorruptPdfError } from "../ocr/pdfText";
-import { MAX_DOCUMENT_PAGES, MAX_AI_FILE_BYTES } from "./config";
+import { MAX_DOCUMENT_PAGES, MAX_AI_FILE_BYTES, MAX_VISUAL_PDF_PAGES } from "./config";
 import { AiExtractionError } from "./client";
 import {
   readWorkbook,
@@ -107,6 +107,11 @@ async function ingestPdf(buffer: Buffer): Promise<IngestedDocument> {
   // visually.
   const meaningfulText = textLayer.replace(/\s+/g, "").length;
   const scanned = pageCount > 0 && meaningfulText / pageCount < 40;
+  if (scanned && pageCount > MAX_VISUAL_PDF_PAGES) {
+    throw new AiExtractionError(
+      `This scanned PDF has ${pageCount} pages. Scanned PDFs are limited to ${MAX_VISUAL_PDF_PAGES} page(s) on this deployment because visual PDF reading takes too long. Upload Excel/CSV if available, split the PDF, or enter the items manually.`
+    );
+  }
 
   const blocks: ContentBlockParam[] = [
     {

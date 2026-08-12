@@ -1,19 +1,33 @@
-import type { AiOrderResult } from "../../modules/ai/schema";
+import type { AiOrderItem, AiOrderResult } from "../../modules/ai/schema";
+
+export interface ChunkOutcomeBase {
+  index: number;
+  chunkId: string;
+  totalChunks: number;
+  startPage: number;
+  endPage: number;
+  attempts: number;
+}
+
+export interface ChunkResult extends ChunkOutcomeBase {
+  status: "COMPLETED";
+  result: AiOrderResult;
+}
+
+export interface ChunkFailure extends ChunkOutcomeBase {
+  status: "FAILED";
+  errorMessage: string;
+}
+
+export type ChunkOutcome = ChunkResult | ChunkFailure;
 
 /**
  * Reassembles the per-chunk extractions of one document into a single result.
  *
- * Chunks are cut on page boundaries, so every printed row belongs to exactly
- * one chunk. That is what makes this merge a concatenation rather than a
- * reconciliation, and it is deliberate — see the note on de-duplication below.
+ * Chunks overlap on page boundaries, so duplicates may appear in adjacent
+ * chunk results. The overlap is intentional: it preserves table continuity
+ * across page breaks. Duplicate rows from the shared pages are removed here.
  */
-
-export interface ChunkResult {
-  index: number;
-  startPage: number;
-  endPage: number;
-  result: AiOrderResult;
-}
 
 /** First non-empty value wins, scanning chunks in page order. */
 function firstText(chunks: ChunkResult[], pick: (r: AiOrderResult) => string): string {
@@ -48,25 +62,44 @@ function unique(values: string[]): string[] {
   return [...new Set(values.map((v) => v.trim()).filter(Boolean))];
 }
 
+function normalizeRowKey(item: AiOrderItem): string {
+  return [
+    item.description.trim().toLowerCase(),
+    item.code.trim().toLowerCase(),
+    item.unit.trim().toLowerCase(),
+    item.qty.toString(),
+    item.rate.toString(),
+    item.amount.toString(),
+    item.sourcePage.toString(),
+  ].join("|");
+}
+
+function deduplicateOverlaps(items: AiOrderItem[]): AiOrderItem[] {
+  const seen = new Set<string>();
+  const deduped: AiOrderItem[] = [];
+
+  for (const item of items) {
+    const key = normalizeRowKey(item);
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduped.push(item);
+    }
+  }
+  return deduped;
+}
+
 /**
  * Merges chunk results into one order result.
  *
- * **Item rows are concatenated, never de-duplicated by content.** It is
- * tempting to drop rows that look identical across a chunk boundary, and it
- * would be wrong: a real BOQ repeats the same line legitimately — this
- * project's Work Order quotes the same 50 mm ball valve, the same SS-316 pipe
- * sizes and the same cable runs in both the indoor and the outdoor annexure,
- * at identical quantities and rates. Collapsing those would silently delete
- * billable work and under-state the contract, and the reviewer would have no
- * way to see what went missing. Since chunks never overlap, a genuine
- * double-read cannot occur here anyway; a duplicated row means the document
- * really prints it twice, which is the reviewer's call to make, not ours.
+ * Adjacent chunks may overlap by a page to preserve table continuity.
+ * Duplicate rows from the overlapping pages are removed where the same
+ * row returns from both chunks with identical content and page reference.
  */
 export function mergeChunkResults(chunks: ChunkResult[]): AiOrderResult {
   const ordered = [...chunks].sort((a, b) => a.index - b.index);
   const withItems = ordered.filter((c) => c.result.extractedData.items.length > 0);
 
-  const items = ordered.flatMap((c) => c.result.extractedData.items);
+  const items = deduplicateOverlaps(ordered.flatMap((c) => c.result.extractedData.items));
 
   // documentType: the first chunk to make a confident call. Later chunks see
   // only interior pages of a BOQ table and routinely answer "UNKNOWN", which

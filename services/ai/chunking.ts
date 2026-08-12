@@ -1,5 +1,6 @@
 import { PDFDocument } from "pdf-lib";
 import { DOCUMENTS_BUCKET, supabaseServer } from "../../lib/supabaseServer";
+import { PDF_CHUNK_SIZE, PDF_CHUNK_OVERLAP, PDF_CHUNKING_THRESHOLD } from "./config";
 
 /**
  * Page-range chunking for long PDFs.
@@ -13,7 +14,7 @@ import { DOCUMENTS_BUCKET, supabaseServer } from "../../lib/supabaseServer";
  * So a long document is sliced into page ranges, each read by its own
  * invocation and each comfortably inside the cap. The slices live in Supabase
  * Storage between invocations because the uploaded buffer does not survive the
- * request that carried it, and re-uploading a 20 MB PDF once per chunk would
+ * request that carried it, and re-uploading a large PDF once per chunk would
  * push the cost onto the user's connection instead.
  */
 
@@ -36,6 +37,8 @@ export const CHUNK_THRESHOLD_PAGES = 12;
 
 export interface PdfChunk {
   index: number;
+  chunkId: string;
+  totalChunks: number;
   /** 1-based, inclusive — used to tell the model where it is in the document. */
   startPage: number;
   endPage: number;
@@ -43,18 +46,26 @@ export interface PdfChunk {
 }
 
 export function shouldChunk(pageCount: number): boolean {
-  return pageCount > CHUNK_THRESHOLD_PAGES;
+  return pageCount > PDF_CHUNKING_THRESHOLD;
 }
 
 /** Page ranges a document of this length will be split into. */
 export function planChunks(pageCount: number): { startPage: number; endPage: number }[] {
   const ranges: { startPage: number; endPage: number }[] = [];
-  for (let start = 0; start < pageCount; start += CHUNK_PAGE_SIZE) {
-    ranges.push({
-      startPage: start + 1,
-      endPage: Math.min(start + CHUNK_PAGE_SIZE, pageCount),
-    });
+  if (pageCount <= PDF_CHUNK_SIZE) {
+    return [{ startPage: 1, endPage: pageCount }];
   }
+
+  const overlap = Math.min(PDF_CHUNK_OVERLAP, PDF_CHUNK_SIZE - 1);
+  let startPage = 1;
+
+  while (startPage <= pageCount) {
+    const endPage = Math.min(startPage + PDF_CHUNK_SIZE - 1, pageCount);
+    ranges.push({ startPage, endPage });
+    if (endPage === pageCount) break;
+    startPage = endPage - overlap + 1;
+  }
+
   return ranges;
 }
 
@@ -84,6 +95,8 @@ export async function splitPdf(buffer: Buffer): Promise<PdfChunk[]> {
 
     chunks.push({
       index,
+      chunkId: `${range.startPage}-${range.endPage}`,
+      totalChunks: ranges.length,
       startPage: range.startPage,
       endPage: range.endPage,
       buffer: Buffer.from(await slice.save()),
@@ -98,8 +111,8 @@ export async function splitPdf(buffer: Buffer): Promise<PdfChunk[]> {
  * Slices are namespaced by job id so cleanup is a single prefix delete and a
  * failed job can never leave slices that another job might pick up.
  */
-function chunkPath(jobId: string, index: number): string {
-  return `extraction-chunks/${jobId}/${String(index).padStart(3, "0")}.pdf`;
+function chunkPath(jobId: string, chunk: PdfChunk): string {
+  return `extraction-chunks/${jobId}/${String(chunk.index).padStart(3, "0")}-${chunk.chunkId}.pdf`;
 }
 
 export async function uploadChunks(jobId: string, chunks: PdfChunk[]): Promise<string[]> {
@@ -107,14 +120,11 @@ export async function uploadChunks(jobId: string, chunks: PdfChunk[]): Promise<s
   const paths: string[] = [];
 
   for (const chunk of chunks) {
-    const path = chunkPath(jobId, chunk.index);
+    const path = chunkPath(jobId, chunk);
     const { error } = await supabase.storage
       .from(DOCUMENTS_BUCKET)
       .upload(path, chunk.buffer, { contentType: "application/pdf", upsert: true });
     if (error) {
-      // Leave already-uploaded slices to the reaper rather than attempting a
-      // compensating delete here: the caller is about to fail the job, and a
-      // cleanup that itself throws would mask the real error.
       throw new Error(`Could not stage page ${chunk.startPage}-${chunk.endPage} for reading: ${error.message}`);
     }
     paths.push(path);

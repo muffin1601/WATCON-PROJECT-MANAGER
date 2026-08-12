@@ -9,6 +9,7 @@ import {
 } from "../../../../services/ai/jobs";
 import { isSupportedForAi } from "../../../../services/ai/ingest";
 import { MAX_AI_FILE_BYTES } from "../../../../services/ai/config";
+import { formatUploadLimit } from "../../../../modules/documents/uploadLimits";
 
 /**
  * Starts an AI extraction and returns immediately with a job id.
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest) {
   }
   if (file.size > MAX_AI_FILE_BYTES) {
     return NextResponse.json(
-      { error: `File is larger than ${MAX_AI_FILE_BYTES / 1024 / 1024} MB.` },
+      { error: `File must be below ${formatUploadLimit(MAX_AI_FILE_BYTES)}.` },
       { status: 400 }
     );
   }

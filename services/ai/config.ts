@@ -27,10 +27,36 @@ export function modelForDocument(kind: DocumentClass): string {
 export const MAX_DOCUMENT_PAGES = 50;
 
 /**
+ * Vercel is a poor fit for long visual PDF reads: even tiny scanned PDFs can
+ * take minutes because every page is transcribed by a model. Keep production
+ * reads bounded there; use Excel/CSV or a worker service for long scans.
+ */
+export const MAX_VISUAL_PDF_PAGES = Number(process.env.MAX_VISUAL_PDF_PAGES || (process.env.VERCEL ? 3 : 12));
+
+/**
+ * On Vercel, prefer deterministic local PDF table/text readers over a full
+ * model pass. This avoids function timeouts at the cost of weaker extraction
+ * on unusual PDF layouts. Set AI_PDF_MODE=ai to force the old AI-first path.
+ */
+export const FAST_PDF_MODE = process.env.AI_PDF_MODE !== "ai" && (process.env.VERCEL === "1" || process.env.AI_PDF_MODE === "fast");
+
+/**
  * The Anthropic API rejects requests whose total body exceeds 32 MB. Base64
  * inflates bytes by ~4/3, so cap the raw file well under that.
  */
 export const MAX_AI_FILE_BYTES = MAX_AI_UPLOAD_BYTES;
+
+export function envNumber(name: string, defaultValue: number): number {
+  const parsed = Number(process.env[name]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultValue;
+}
+
+export const PDF_CHUNK_SIZE = envNumber("PDF_CHUNK_SIZE", 8);
+export const PDF_CHUNK_OVERLAP = envNumber("PDF_CHUNK_OVERLAP", 1);
+export const PDF_CHUNKING_THRESHOLD = envNumber("PDF_CHUNKING_THRESHOLD", 10);
+export const PDF_MAX_CONCURRENT_CHUNKS = envNumber("PDF_MAX_CONCURRENT_CHUNKS", 3);
+export const PDF_MAX_RETRIES = envNumber("PDF_MAX_RETRIES", 2);
+export const PDF_OCR_CONCURRENCY = envNumber("PDF_OCR_CONCURRENCY", 2);
 
 /**
  * Output ceiling per extraction call. A 50-page BOQ can legitimately produce

@@ -143,12 +143,21 @@ old, unless `force=1`.
 Each run writes a `BackupRun` row (success or failure) so a silently broken
 backup is visible. Old backups are never deleted.
 
-### 3. Serverless timeouts
+### 3. Vercel / serverless timeouts
 
-`/api/ai/extract` sets `maxDuration = 300`. On Vercel this needs a plan that
-allows it — **Hobby caps at 60s**, which will kill large extractions mid-run
-(the job is then reaped and reported as a timeout). On a long-running Node host
-the setting is ignored and there is no limit.
+PDF reading can still be slow even below the upload-size limit, especially for
+scanned/image PDFs. On Vercel the app runs in a safe mode:
+
+- digital PDFs try the fast structured/local reader before AI
+- if that fast read is weak, Vercel returns a best-effort local draft instead
+  of waiting for a long AI pass
+- scanned PDFs are limited by `MAX_VISUAL_PDF_PAGES` (default `3` on Vercel)
+
+For better scanned-PDF automation, use Excel/CSV uploads where possible, split
+large scans into small PDFs, enable Vercel Fluid Compute on a paid plan, or move
+the document reader to a queue/worker host with no request timeout.
+
+Set `AI_PDF_MODE=ai` only if your deployment can tolerate long PDF model calls.
 
 ---
 
@@ -157,7 +166,8 @@ the setting is ignored and there is no limit.
 | Limit | Value | Where |
 |---|---|---|
 | Pages per document | 50 | `MAX_DOCUMENT_PAGES` |
-| File size for AI reading | 20 MB | `MAX_AI_FILE_BYTES` |
+| File size for AI reading | 4 MB | `MAX_AI_FILE_BYTES` |
+| Scanned PDF pages on Vercel | 3 | `MAX_VISUAL_PDF_PAGES` |
 | Output per extraction | 64,000 tokens | `MAX_OUTPUT_TOKENS` |
 | Low-confidence threshold | 0.75 | `LOW_CONFIDENCE_THRESHOLD` |
 

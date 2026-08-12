@@ -278,7 +278,7 @@ export function IssueChallanModal({
             </FormField>
             <FormField label="Bill copy">
               <input type="file" accept="application/pdf,image/*" onChange={(e) => pickUploadFile(e.target.files?.[0], setTrFile, toast)} />
-              <p className="note">Max {formatUploadLimit(MAX_DOCUMENT_UPLOAD_BYTES)}</p>
+              <p className="note">Max below {formatUploadLimit(MAX_DOCUMENT_UPLOAD_BYTES)}</p>
             </FormField>
           </FormRow>
           <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: -6 }}>

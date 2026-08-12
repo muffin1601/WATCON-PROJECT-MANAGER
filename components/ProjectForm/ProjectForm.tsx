@@ -30,7 +30,7 @@ import { useUploadDocument } from "../../hooks/useUploadDocument";
 import { useExtractionJob } from "../../hooks/useExtractionJob";
 import { ExtractionProgress } from "../ProgressBar/ExtractionProgress";
 import { extractedOrderSchema } from "../../modules/import/schema";
-import { MAX_AI_UPLOAD_BYTES, MAX_DOCUMENT_UPLOAD_BYTES, formatUploadLimit } from "../../modules/documents/uploadLimits";
+import { MAX_AI_UPLOAD_BYTES, formatUploadLimit } from "../../modules/documents/uploadLimits";
 import styles from "./ProjectForm.module.css";
 
 const APPROVAL_LABEL: Record<(typeof APPROVAL_MODES)[number], string> = {
@@ -321,8 +321,7 @@ export function ProjectForm({ gstRatePct }: { gstRatePct: number }) {
           <h3 className={styles.sectionTitle}>Order copy (PO / BOQ / approved quotation)</h3>
           <p className={styles.hint}>
             Attach the PDF, scan, Excel, CSV or image — it is read automatically and the Sales Order is prepared for
-            you. Review and edit everything before saving. Upload limit: {formatUploadLimit(MAX_AI_UPLOAD_BYTES)} for
-            auto-reading, {formatUploadLimit(MAX_DOCUMENT_UPLOAD_BYTES)} for saved attachments.
+            you. Review and edit everything before saving. Upload limit: below {formatUploadLimit(MAX_AI_UPLOAD_BYTES)}.
           </p>
           {orderFile ? (
             <div style={{ marginBottom: 14 }}>

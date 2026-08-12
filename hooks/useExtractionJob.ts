@@ -119,25 +119,27 @@ export function useExtractionJob() {
 
         setPhase({ status: "running", job });
 
-        // Drive the next page range of a chunked read. Keyed on chunksDone so
-        // each range is requested exactly once; the server is idempotent
-        // anyway, but a duplicate would still cost a full extra model call.
-        if (job.totalChunks > 0 && job.chunksDone < job.totalChunks && !requested.has(job.chunksDone)) {
-          requested.add(job.chunksDone);
-          // Deliberately not awaited: this request stays open for the whole
-          // chunk, and awaiting it would stall the poll loop that renders
-          // progress. Failures surface through the job row, which the next
-          // tick reads.
-          void fetch("/api/ai/extract/continue", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ jobId }),
-          }).catch(() => {
-            // Let the poll loop retry this range on a later tick rather than
-            // failing the whole extraction on one dropped request.
-            requested.delete(job.chunksDone);
-          });
-        }
+            // Drive up to N concurrent page-range requests for a chunked read.
+            // Default comes from NEXT_PUBLIC_PDF_MAX_CONCURRENT_CHUNKS at build
+            // time; fall back to 3 when absent.
+            const concurrency = Number(process.env.NEXT_PUBLIC_PDF_MAX_CONCURRENT_CHUNKS) || 3;
+            if (job.totalChunks > 0 && job.chunksDone < job.totalChunks) {
+              // Attempt to dispatch the next unfinished ranges until we hit the
+              // concurrency cap. We pick indices starting at chunksDone so the
+              // server sees well-formed ranges; `requested` prevents duplicates.
+              for (let i = job.chunksDone; i < job.totalChunks && requested.size < concurrency; i++) {
+                if (requested.has(i)) continue;
+                requested.add(i);
+                void fetch("/api/ai/extract/continue", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ jobId }),
+                }).catch(() => {
+                  // If the request failed to start, allow a later tick to retry.
+                  requested.delete(i);
+                });
+              }
+            }
 
         timer.current = setTimeout(tick, POLL_INTERVAL_MS);
       } catch (err) {
@@ -168,7 +170,7 @@ export function useExtractionJob() {
       if (file.size > MAX_AI_UPLOAD_BYTES) {
         setPhase({
           status: "failed",
-          message: `File is larger than ${formatUploadLimit(MAX_AI_UPLOAD_BYTES)}. Compress it or split it into smaller documents.`,
+          message: `File must be below ${formatUploadLimit(MAX_AI_UPLOAD_BYTES)}. Compress it or split it into smaller documents.`,
         });
         return null;
       }

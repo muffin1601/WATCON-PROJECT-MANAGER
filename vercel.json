@@ -5,5 +5,13 @@
       "path": "/api/cron/backup",
       "schedule": "0 19 * * 0"
     }
-  ]
+  ],
+  "functions": {
+    "app/api/ai/extract/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/ai/extract/continue/route.ts": {
+      "maxDuration": 300
+    }
+  }
 }

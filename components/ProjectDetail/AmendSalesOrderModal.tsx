@@ -175,7 +175,7 @@ export function AmendSalesOrderModal({ project, onClose }: { project: ProjectVie
       <FormField label="Approval copy (PO amendment / email / WhatsApp — optional)">
         <input type="file" accept="application/pdf,image/*" onChange={(e) => pickUploadFile(e.target.files?.[0], setFile, toast)} />
       </FormField>
-      <p className="note">Maximum file size: {formatUploadLimit(MAX_DOCUMENT_UPLOAD_BYTES)}</p>
+      <p className="note">Maximum file size: below {formatUploadLimit(MAX_DOCUMENT_UPLOAD_BYTES)}</p>
       <p style={{ fontWeight: 600 }}>
         Current basic value: <span className="money">{inr(oldBase)}</span> → Amended:{" "}
         <span className="money">{inr(newBase)}</span> · Change:{" "}

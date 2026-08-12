@@ -706,6 +706,8 @@ model ExtractionJob {
   // lands. Held here rather than in memory because each chunk runs in a
   // different invocation with no shared state.
   chunkResults Json?
+  // Per-chunk retry counts, keyed by chunk index.
+  chunkAttempts Json?
 
   createdAt   DateTime  @default(now())
   startedAt   DateTime?

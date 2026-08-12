@@ -33,7 +33,7 @@ export function useUploadDocument() {
   return useMutation({
     mutationFn: async (input: UploadDocumentArgs) => {
       if (input.file.size > MAX_DOCUMENT_UPLOAD_BYTES) {
-        throw new Error(`File is larger than ${formatUploadLimit(MAX_DOCUMENT_UPLOAD_BYTES)}.`);
+        throw new Error(`File must be below ${formatUploadLimit(MAX_DOCUMENT_UPLOAD_BYTES)}.`);
       }
 
       const fd = new FormData();

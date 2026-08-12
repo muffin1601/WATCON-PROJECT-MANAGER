@@ -8,7 +8,7 @@ import {
   classifyWithFallback,
 } from "./providers";
 import { reconcileOrderTotals } from "./extract";
-import { isAiConfigured } from "./config";
+import { isAiConfigured, PDF_MAX_CONCURRENT_CHUNKS, PDF_MAX_RETRIES } from "./config";
 import {
   shouldChunk,
   splitPdf,
@@ -17,7 +17,7 @@ import {
   downloadChunk,
   deleteChunks,
 } from "./chunking";
-import { mergeChunkResults, type ChunkResult } from "./mergeChunks";
+import { mergeChunkResults, type ChunkResult, type ChunkOutcome } from "./mergeChunks";
 import type { AiOrderResult } from "../../modules/ai/schema";
 import { validateOrder, validateChallan } from "./validate";
 import { toExtractedOrder, toMappedChallan } from "./mapper";
@@ -287,8 +287,6 @@ export async function runNextOrderChunk(jobId: string, fileName: string): Promis
   const paths = (job.chunkPaths as string[] | null) ?? [];
   const done = (job.chunkResults as unknown as ChunkResult[] | null) ?? [];
 
-  // Index by chunk, not by count, so a retried or out-of-order call re-reads
-  // the range that is actually missing rather than skipping it.
   const completed = new Set(done.map((c) => c.index));
   const nextIndex = paths.findIndex((_, i) => !completed.has(i));
   if (nextIndex < 0) {
@@ -296,6 +294,7 @@ export async function runNextOrderChunk(jobId: string, fileName: string): Promis
     return;
   }
 
+  const retryCount = job.attempts || 0;
   try {
     const slice = await downloadChunk(paths[nextIndex]!);
     const ranges = planChunks(job.pageCount);
@@ -310,7 +309,16 @@ export async function runNextOrderChunk(jobId: string, fileName: string): Promis
 
     const appended: ChunkResult[] = [
       ...done,
-      { index: nextIndex, startPage: range.startPage, endPage: range.endPage, result },
+      {
+        status: "COMPLETED",
+        index: nextIndex,
+        chunkId: `${range.startPage}-${range.endPage}`,
+        totalChunks: job.totalChunks || ranges.length,
+        startPage: range.startPage,
+        endPage: range.endPage,
+        attempts: (job.attempts || 0) + 1,
+        result,
+      },
     ];
     const chunksDone = appended.length;
 
@@ -324,6 +332,7 @@ export async function runNextOrderChunk(jobId: string, fileName: string): Promis
         chunkResults: appended as unknown as Prisma.InputJsonValue,
         modelUsed: usage.model,
         heartbeatAt: new Date(),
+        attempts: { increment: 1 },
       },
     });
 
@@ -331,8 +340,24 @@ export async function runNextOrderChunk(jobId: string, fileName: string): Promis
       await finishChunkedOrder(jobId, appended, paths, usage.model);
     }
   } catch (err) {
+    const message = toUserMessage(err);
+    if (retryCount < PDF_MAX_RETRIES) {
+      console.warn(`[ai] chunk ${nextIndex} failed for job ${jobId}, retry ${retryCount + 1}/${PDF_MAX_RETRIES}:`, message);
+      await prisma.extractionJob.update({
+        where: { id: jobId },
+        data: {
+          status: ExtractionJobStatus.RUNNING,
+          stage: ExtractionStage.EXTRACTING,
+          heartbeatAt: new Date(),
+          attempts: { increment: 1 },
+          errorMessage: message,
+        },
+      });
+      return;
+    }
+
     await deleteChunks(paths);
-    await failJob(jobId, toUserMessage(err));
+    await failJob(jobId, message);
   }
 }
 

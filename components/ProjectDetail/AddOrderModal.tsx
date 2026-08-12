@@ -137,7 +137,7 @@ export function AddOrderModal({ project, onClose }: { project: ProjectViewModel;
       <p style={{ fontSize: 12.5, color: "var(--muted)" }}>
         If you attach the order copy, the document engine reads it and adds its items to the sales order under this
         order. You can also save without a file and add items manually. Project terms (GST, transport, payment) stay as
-        set for the project. Auto-read upload limit: {formatUploadLimit(MAX_AI_UPLOAD_BYTES)}.
+        set for the project. Auto-read upload limit: below {formatUploadLimit(MAX_AI_UPLOAD_BYTES)}.
       </p>
       {extraction.phase.status === "running" && (
         <ExtractionProgress job={extraction.phase.job} />
