@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { MAX_AI_UPLOAD_BYTES, formatUploadLimit } from "../modules/documents/uploadLimits";
 
 /**
  * Drives one AI extraction: uploads the file, then polls the job row until it
@@ -164,6 +165,14 @@ export function useExtractionJob() {
       opts: { projectId?: string; documentId?: string } = {}
     ): Promise<ExtractionJobState | null> => {
       stop();
+      if (file.size > MAX_AI_UPLOAD_BYTES) {
+        setPhase({
+          status: "failed",
+          message: `File is larger than ${formatUploadLimit(MAX_AI_UPLOAD_BYTES)}. Compress it or split it into smaller documents.`,
+        });
+        return null;
+      }
+
       setPhase({
         status: "running",
         job: {

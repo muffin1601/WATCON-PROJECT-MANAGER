@@ -2,6 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import type { DocumentKind } from "../modules/documents/schema";
+import { MAX_DOCUMENT_UPLOAD_BYTES, formatUploadLimit } from "../modules/documents/uploadLimits";
 
 export interface UploadDocumentArgs {
   file: File;
@@ -31,6 +32,10 @@ export class DuplicateUploadError extends Error {
 export function useUploadDocument() {
   return useMutation({
     mutationFn: async (input: UploadDocumentArgs) => {
+      if (input.file.size > MAX_DOCUMENT_UPLOAD_BYTES) {
+        throw new Error(`File is larger than ${formatUploadLimit(MAX_DOCUMENT_UPLOAD_BYTES)}.`);
+      }
+
       const fd = new FormData();
       fd.append("file", input.file);
       fd.append("kind", input.kind);

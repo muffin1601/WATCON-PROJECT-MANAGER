@@ -1,3 +1,5 @@
+import { MAX_AI_UPLOAD_BYTES } from "../../modules/documents/uploadLimits";
+
 // Central AI configuration. Every model id, limit and tunable lives here so
 // there is exactly one place to change when models or pricing move.
 //
@@ -28,7 +30,7 @@ export const MAX_DOCUMENT_PAGES = 50;
  * The Anthropic API rejects requests whose total body exceeds 32 MB. Base64
  * inflates bytes by ~4/3, so cap the raw file well under that.
  */
-export const MAX_AI_FILE_BYTES = 20 * 1024 * 1024;
+export const MAX_AI_FILE_BYTES = MAX_AI_UPLOAD_BYTES;
 
 /**
  * Output ceiling per extraction call. A 50-page BOQ can legitimately produce

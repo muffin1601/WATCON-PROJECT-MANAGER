@@ -12,6 +12,8 @@ import { inr, todayIso } from "../../lib/format";
 import { apiFetch } from "../../lib/apiClient";
 import { useToast } from "../Toast/ToastProvider";
 import { useUploadDocument } from "../../hooks/useUploadDocument";
+import { MAX_DOCUMENT_UPLOAD_BYTES, formatUploadLimit } from "../../modules/documents/uploadLimits";
+import { pickUploadFile } from "../FileDrop/pickUploadFile";
 import type { ProjectViewModel } from "../../modules/projects/viewModel";
 
 interface WorkRow {
@@ -171,8 +173,9 @@ export function AmendSalesOrderModal({ project, onClose }: { project: ProjectVie
         </FormField>
       </FormRow>
       <FormField label="Approval copy (PO amendment / email / WhatsApp — optional)">
-        <input type="file" accept="application/pdf,image/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+        <input type="file" accept="application/pdf,image/*" onChange={(e) => pickUploadFile(e.target.files?.[0], setFile, toast)} />
       </FormField>
+      <p className="note">Maximum file size: {formatUploadLimit(MAX_DOCUMENT_UPLOAD_BYTES)}</p>
       <p style={{ fontWeight: 600 }}>
         Current basic value: <span className="money">{inr(oldBase)}</span> → Amended:{" "}
         <span className="money">{inr(newBase)}</span> · Change:{" "}

@@ -18,6 +18,8 @@ import { apiFetch } from "../../lib/apiClient";
 import { useToast } from "../Toast/ToastProvider";
 import { useUploadDocument } from "../../hooks/useUploadDocument";
 import { TransportInput, transportInputSchema } from "../../modules/projects/schema";
+import { MAX_DOCUMENT_UPLOAD_BYTES, formatUploadLimit } from "../../modules/documents/uploadLimits";
+import { pickUploadFile } from "../FileDrop/pickUploadFile";
 import type { ProjectViewModel } from "../../modules/projects/viewModel";
 
 type Transport = ProjectViewModel["transports"][number];
@@ -216,7 +218,8 @@ export function TransportTab({ project }: { project: ProjectViewModel }) {
             </FormField>
           </FormRow>
           <FormField label="Transport bill copy (PDF or image)">
-            <input type="file" accept="application/pdf,image/*" onChange={(e) => setBillFile(e.target.files?.[0] ?? null)} />
+            <input type="file" accept="application/pdf,image/*" onChange={(e) => pickUploadFile(e.target.files?.[0], setBillFile, toast)} />
+            <p className="note">Maximum file size: {formatUploadLimit(MAX_DOCUMENT_UPLOAD_BYTES)}</p>
           </FormField>
           {editing?.attachments[0] && (
             <p className="note" style={{ marginTop: -8 }}>

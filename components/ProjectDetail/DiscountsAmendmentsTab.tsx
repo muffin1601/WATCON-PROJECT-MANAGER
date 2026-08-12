@@ -16,6 +16,8 @@ import { apiFetch } from "../../lib/apiClient";
 import { useToast } from "../Toast/ToastProvider";
 import { useUploadDocument } from "../../hooks/useUploadDocument";
 import { DiscountInput, AmendmentInput } from "../../modules/adjustments/schema";
+import { MAX_DOCUMENT_UPLOAD_BYTES, formatUploadLimit } from "../../modules/documents/uploadLimits";
+import { pickUploadFile } from "../FileDrop/pickUploadFile";
 import type { ProjectViewModel } from "../../modules/projects/viewModel";
 import styles from "./DiscountsAmendmentsTab.module.css";
 
@@ -219,7 +221,8 @@ export function DiscountsAmendmentsTab({ project }: { project: ProjectViewModel 
             />
           </FormField>
           <FormField label="Approval copy (PO amendment / email / WhatsApp)">
-            <input type="file" accept="application/pdf,image/*" onChange={(e) => setAmFile(e.target.files?.[0] ?? null)} />
+            <input type="file" accept="application/pdf,image/*" onChange={(e) => pickUploadFile(e.target.files?.[0], setAmFile, toast)} />
+            <p className="note">Maximum file size: {formatUploadLimit(MAX_DOCUMENT_UPLOAD_BYTES)}</p>
           </FormField>
         </Modal>
       )}

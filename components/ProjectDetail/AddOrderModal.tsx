@@ -8,12 +8,14 @@ import { Button } from "../Button/Button";
 import { Chip } from "../Chip/Chip";
 import { FormField, FormRow } from "../Form/FormField";
 import { TextInput } from "../Form/Inputs";
-import { ProgressBar } from "../ProgressBar/ProgressBar";
+import { ExtractionProgress } from "../ProgressBar/ExtractionProgress";
 import { todayIso } from "../../lib/format";
 import { apiFetch } from "../../lib/apiClient";
 import { useToast } from "../Toast/ToastProvider";
 import { useUploadDocument } from "../../hooks/useUploadDocument";
 import { useExtractionJob } from "../../hooks/useExtractionJob";
+import { MAX_AI_UPLOAD_BYTES, formatUploadLimit } from "../../modules/documents/uploadLimits";
+import { pickUploadFile } from "../FileDrop/pickUploadFile";
 import type { ProjectViewModel } from "../../modules/projects/viewModel";
 
 interface ExtractedItem {
@@ -129,22 +131,16 @@ export function AddOrderModal({ project, onClose }: { project: ProjectViewModel;
         <input
           type="file"
           accept="application/pdf,image/*,.xlsx,.xls,.csv"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          onChange={(e) => pickUploadFile(e.target.files?.[0], setFile, toast, MAX_AI_UPLOAD_BYTES)}
         />
       </FormField>
       <p style={{ fontSize: 12.5, color: "var(--muted)" }}>
         If you attach the order copy, the document engine reads it and adds its items to the sales order under this
         order. You can also save without a file and add items manually. Project terms (GST, transport, payment) stay as
-        set for the project.
+        set for the project. Auto-read upload limit: {formatUploadLimit(MAX_AI_UPLOAD_BYTES)}.
       </p>
       {extraction.phase.status === "running" && (
-        <div style={{ marginTop: 8 }}>
-          <span className="ai-badge">
-            {extraction.phase.job.stageLabel}
-            {extraction.phase.job.pageCount > 0 ? ` · ${extraction.phase.job.pageCount} page(s)` : ""}…
-          </span>
-          <ProgressBar percent={extraction.phase.job.progressPct} />
-        </div>
+        <ExtractionProgress job={extraction.phase.job} />
       )}
       {extraction.phase.status === "failed" && (
         <p style={{ marginTop: 8 }}>

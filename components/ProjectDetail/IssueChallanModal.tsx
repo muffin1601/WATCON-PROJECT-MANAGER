@@ -13,6 +13,8 @@ import { todayIso } from "../../lib/format";
 import { useToast } from "../Toast/ToastProvider";
 import { useUploadDocument } from "../../hooks/useUploadDocument";
 import { IssueChallanInput, ChallanExtraItemInput } from "../../modules/challans/schema";
+import { MAX_DOCUMENT_UPLOAD_BYTES, formatUploadLimit } from "../../modules/documents/uploadLimits";
+import { pickUploadFile } from "../FileDrop/pickUploadFile";
 import type { ProjectViewModel } from "../../modules/projects/viewModel";
 
 interface RowState {
@@ -275,7 +277,8 @@ export function IssueChallanModal({
               <TextInput type="number" min={0} value={trAmount || ""} onChange={(e) => setTrAmount(Number(e.target.value) || 0)} />
             </FormField>
             <FormField label="Bill copy">
-              <input type="file" accept="application/pdf,image/*" onChange={(e) => setTrFile(e.target.files?.[0] ?? null)} />
+              <input type="file" accept="application/pdf,image/*" onChange={(e) => pickUploadFile(e.target.files?.[0], setTrFile, toast)} />
+              <p className="note">Max {formatUploadLimit(MAX_DOCUMENT_UPLOAD_BYTES)}</p>
             </FormField>
           </FormRow>
           <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: -6 }}>

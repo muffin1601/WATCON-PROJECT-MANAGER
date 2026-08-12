@@ -21,15 +21,16 @@ import { Button } from "../Button/Button";
 import { TableWrap, Table, Th, Td } from "../Table/Table";
 import { FileDrop } from "../FileDrop/FileDrop";
 import { AttachmentRow } from "../FileDrop/AttachmentRow";
-import { AiBadge, Spinner } from "../Status/Status";
+import { AiBadge } from "../Status/Status";
 import { Chip } from "../Chip/Chip";
 import { inr, todayIso } from "../../lib/format";
 import { apiFetch } from "../../lib/apiClient";
 import { useToast } from "../Toast/ToastProvider";
 import { useUploadDocument } from "../../hooks/useUploadDocument";
 import { useExtractionJob } from "../../hooks/useExtractionJob";
-import { ProgressBar } from "../ProgressBar/ProgressBar";
+import { ExtractionProgress } from "../ProgressBar/ExtractionProgress";
 import { extractedOrderSchema } from "../../modules/import/schema";
+import { MAX_AI_UPLOAD_BYTES, MAX_DOCUMENT_UPLOAD_BYTES, formatUploadLimit } from "../../modules/documents/uploadLimits";
 import styles from "./ProjectForm.module.css";
 
 const APPROVAL_LABEL: Record<(typeof APPROVAL_MODES)[number], string> = {
@@ -320,7 +321,8 @@ export function ProjectForm({ gstRatePct }: { gstRatePct: number }) {
           <h3 className={styles.sectionTitle}>Order copy (PO / BOQ / approved quotation)</h3>
           <p className={styles.hint}>
             Attach the PDF, scan, Excel, CSV or image — it is read automatically and the Sales Order is prepared for
-            you. Review and edit everything before saving.
+            you. Review and edit everything before saving. Upload limit: {formatUploadLimit(MAX_AI_UPLOAD_BYTES)} for
+            auto-reading, {formatUploadLimit(MAX_DOCUMENT_UPLOAD_BYTES)} for saved attachments.
           </p>
           {orderFile ? (
             <div style={{ marginBottom: 14 }}>
@@ -339,6 +341,7 @@ export function ProjectForm({ gstRatePct }: { gstRatePct: number }) {
             <div style={{ marginBottom: 14 }}>
               <FileDrop
                 accept="application/pdf,image/png,image/jpeg,.xlsx,.xls,.csv"
+                maxSizeBytes={MAX_AI_UPLOAD_BYTES}
                 onFile={handleOrderFile}
               >
                 Drop the PO / BOQ / quotation here — PDF, Excel (.xlsx/.xls), CSV or image — or click to choose a file
@@ -347,16 +350,7 @@ export function ProjectForm({ gstRatePct }: { gstRatePct: number }) {
           )}
 
           {extraction.phase.status === "running" && (
-            <div style={{ marginBottom: 14 }}>
-              <p className={styles.hint}>
-                <Spinner />
-                <AiBadge>
-                  {extraction.phase.job.stageLabel}
-                  {extraction.phase.job.pageCount > 0 ? ` · ${extraction.phase.job.pageCount} page(s)` : ""}…
-                </AiBadge>
-              </p>
-              <ProgressBar percent={extraction.phase.job.progressPct} />
-            </div>
+            <ExtractionProgress job={extraction.phase.job} />
           )}
 
           {parseSummary && (

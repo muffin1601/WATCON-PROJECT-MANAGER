@@ -17,6 +17,8 @@ import { apiFetch } from "../../lib/apiClient";
 import { useToast } from "../Toast/ToastProvider";
 import { useUploadDocument } from "../../hooks/useUploadDocument";
 import { PaymentInput, paymentInputSchema } from "../../modules/projects/schema";
+import { MAX_DOCUMENT_UPLOAD_BYTES, formatUploadLimit } from "../../modules/documents/uploadLimits";
+import { pickUploadFile } from "../FileDrop/pickUploadFile";
 import type { ProjectViewModel } from "../../modules/projects/viewModel";
 
 const MODE_LABEL: Record<string, string> = {
@@ -181,8 +183,9 @@ export function PaymentsTab({ project }: { project: ProjectViewModel }) {
             <input
               type="file"
               accept="application/pdf,image/*"
-              onChange={(e) => setProofFile(e.target.files?.[0] ?? null)}
+              onChange={(e) => pickUploadFile(e.target.files?.[0], setProofFile, toast)}
             />
+            <p className="note">Maximum file size: {formatUploadLimit(MAX_DOCUMENT_UPLOAD_BYTES)}</p>
           </FormField>
         </Modal>
       )}

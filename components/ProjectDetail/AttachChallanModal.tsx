@@ -12,10 +12,12 @@ import { apiFetch } from "../../lib/apiClient";
 import { useToast } from "../Toast/ToastProvider";
 import { useUploadDocument } from "../../hooks/useUploadDocument";
 import { useExtractionJob } from "../../hooks/useExtractionJob";
-import { ProgressBar } from "../ProgressBar/ProgressBar";
-import { AiBadge, Spinner } from "../Status/Status";
+import { ExtractionProgress } from "../ProgressBar/ExtractionProgress";
+import { AiBadge } from "../Status/Status";
 import { Chip } from "../Chip/Chip";
 import { todayIso } from "../../lib/format";
+import { MAX_AI_UPLOAD_BYTES, formatUploadLimit } from "../../modules/documents/uploadLimits";
+import { pickUploadFile } from "../FileDrop/pickUploadFile";
 import type { ProjectViewModel } from "../../modules/projects/viewModel";
 
 /** Shape of the challan job's `result`, as written by runChallanExtraction(). */
@@ -165,14 +167,14 @@ export function AttachChallanModal({
       <p style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 8 }}>
         Attach the challan copy (PDF or image) — it is read automatically and the entries below are filled in for you.
         If you enter the value above, it is added to &quot;material sent&quot;. Quantities linked to sales order items
-        below are picked up by running bills automatically.
+        below are picked up by running bills automatically. Auto-read upload limit: {formatUploadLimit(MAX_AI_UPLOAD_BYTES)}.
       </p>
       <input
         type="file"
         accept="application/pdf,image/png,image/jpeg"
         onChange={(e) => {
           const picked = e.target.files?.[0];
-          if (picked) void handleChallanFile(picked);
+          pickUploadFile(picked, (file) => void handleChallanFile(file), toast, MAX_AI_UPLOAD_BYTES);
         }}
       />
       {editing?.attachments && editing.attachments.length > 0 && (
@@ -182,13 +184,7 @@ export function AttachChallanModal({
       )}
 
       {extraction.phase.status === "running" && (
-        <div style={{ margin: "10px 0" }}>
-          <p style={{ fontSize: 12.5, marginBottom: 6 }}>
-            <Spinner />
-            <AiBadge>{extraction.phase.job.stageLabel}…</AiBadge>
-          </p>
-          <ProgressBar percent={extraction.phase.job.progressPct} />
-        </div>
+        <ExtractionProgress job={extraction.phase.job} />
       )}
 
       {extraction.phase.status === "failed" && (
