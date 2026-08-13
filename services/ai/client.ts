@@ -140,6 +140,14 @@ export async function runExtraction<T>(args: RunExtractionArgs): Promise<RunExtr
       throw new AiExtractionError("Anthropic rate limit reached. The job will retry shortly.", true);
     }
     if (err instanceof Anthropic.BadRequestError) {
+      // An exhausted credit balance arrives as a 400, not a 402 — it is an
+      // account problem rather than anything wrong with the document, so say
+      // so plainly instead of blaming the upload the user just made.
+      if (/credit balance is too low/i.test(err.message)) {
+        throw new AiExtractionError(
+          "Automatic reading is unavailable: the Anthropic API credit balance is exhausted. Ask an administrator to top it up in the Anthropic console, then re-upload — you can add the items manually in the meantime."
+        );
+      }
       throw new AiExtractionError(`The document was rejected by the AI service: ${err.message}`);
     }
     if (err instanceof Anthropic.APIConnectionError) {
