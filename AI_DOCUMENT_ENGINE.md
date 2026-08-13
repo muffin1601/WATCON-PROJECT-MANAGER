@@ -151,7 +151,10 @@ scanned/image PDFs. On Vercel the app runs in a safe mode:
 - digital PDFs try the fast structured/local reader before AI
 - if that fast read is weak, Vercel returns a best-effort local draft instead
   of waiting for a long AI pass
-- scanned PDFs are limited by `MAX_VISUAL_PDF_PAGES` (default `3` on Vercel)
+- scanned PDFs with an AI key configured are read in page-range chunks
+  (`PDF_CHUNK_SIZE`, `PDF_MAX_CONCURRENT_CHUNKS`) up to `MAX_DOCUMENT_PAGES`
+- with no AI key, every page is OCR'd in-process, so scanned PDFs are limited by
+  `MAX_VISUAL_PDF_PAGES` (default `3` on Vercel)
 
 For better scanned-PDF automation, use Excel/CSV uploads where possible, split
 large scans into small PDFs, enable Vercel Fluid Compute on a paid plan, or move
@@ -167,7 +170,7 @@ Set `AI_PDF_MODE=ai` only if your deployment can tolerate long PDF model calls.
 |---|---|---|
 | Pages per document | 50 | `MAX_DOCUMENT_PAGES` |
 | File size for AI reading | 4 MB | `MAX_AI_FILE_BYTES` |
-| Scanned PDF pages on Vercel | 3 | `MAX_VISUAL_PDF_PAGES` |
+| Scanned PDF pages, no AI key | 3 on Vercel / 12 local | `MAX_VISUAL_PDF_PAGES` |
 | Output per extraction | 64,000 tokens | `MAX_OUTPUT_TOKENS` |
 | Low-confidence threshold | 0.75 | `LOW_CONFIDENCE_THRESHOLD` |
 

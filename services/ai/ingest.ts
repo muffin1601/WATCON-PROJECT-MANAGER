@@ -2,7 +2,7 @@ import "../ocr/domPolyfill";
 import { PDFParse, PasswordException, InvalidPDFException } from "pdf-parse";
 import type { ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import { EncryptedPdfError, CorruptPdfError } from "../ocr/pdfText";
-import { MAX_DOCUMENT_PAGES, MAX_AI_FILE_BYTES, MAX_VISUAL_PDF_PAGES } from "./config";
+import { MAX_DOCUMENT_PAGES, MAX_AI_FILE_BYTES, MAX_VISUAL_PDF_PAGES, isAiConfigured } from "./config";
 import { AiExtractionError } from "./client";
 import {
   readWorkbook,
@@ -107,9 +107,16 @@ async function ingestPdf(buffer: Buffer): Promise<IngestedDocument> {
   // visually.
   const meaningfulText = textLayer.replace(/\s+/g, "").length;
   const scanned = pageCount > 0 && meaningfulText / pageCount < 40;
-  if (scanned && pageCount > MAX_VISUAL_PDF_PAGES) {
+
+  // The page ceiling for a visual read only applies to the local engine. With
+  // an AI engine configured, a long scan is split into page-range chunks
+  // (services/ai/chunking.ts) so no single request has to transcribe the whole
+  // document — a 40-page Work Order is five bounded calls, not one long one.
+  // Without a key every page is rasterised and OCR'd in-process, which is what
+  // the low limit was protecting against.
+  if (scanned && !isAiConfigured() && pageCount > MAX_VISUAL_PDF_PAGES) {
     throw new AiExtractionError(
-      `This scanned PDF has ${pageCount} pages. Scanned PDFs are limited to ${MAX_VISUAL_PDF_PAGES} page(s) on this deployment because visual PDF reading takes too long. Upload Excel/CSV if available, split the PDF, or enter the items manually.`
+      `This scanned PDF has ${pageCount} pages. Without an AI key, scanned PDFs are limited to ${MAX_VISUAL_PDF_PAGES} page(s) because every page must be OCR'd locally. Upload Excel/CSV if available, split the PDF, or enter the items manually.`
     );
   }
 
