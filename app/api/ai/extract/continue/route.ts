@@ -3,6 +3,7 @@ import { after } from "next/server";
 import { ExtractionJobStatus } from "@prisma/client";
 import { prisma } from "../../../../../lib/prisma";
 import { runNextOrderChunk } from "../../../../../services/ai/jobs";
+import { requirePermission } from "../../../../../lib/auth";
 
 /**
  * Reads the next page range of a chunked extraction.
@@ -24,6 +25,7 @@ export const runtime = "nodejs";
 export async function POST(req: NextRequest) {
   let jobId: string;
   try {
+    await requirePermission("salesorder", "create");
     const body = (await req.json()) as { jobId?: string };
     jobId = (body.jobId ?? "").trim();
   } catch {

@@ -1,0 +1,48 @@
+/* Costing sheets — same table/form language as the rest of the app. */
+
+.note {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.warn {
+  font-size: 12.5px;
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.sub {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.qty {
+  width: 84px;
+  text-align: right;
+}
+
+.rate {
+  width: 104px;
+  text-align: right;
+}
+
+/* A manually overridden cost rate, so it is obvious which numbers were typed
+   rather than derived. Ported from the prototype's inline accent styling. */
+.manual {
+  border-color: var(--accent);
+  background: #fff9ec;
+}
+
+/* A line with no cost at all — the margin is overstated until it is filled in. */
+.missing {
+  border-color: var(--danger);
+  background: #fbedeb;
+}
+
+.block {
+  background: #fafbfb;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px 0;
+  margin-bottom: 12px;
+}

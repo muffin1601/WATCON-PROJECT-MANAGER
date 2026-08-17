@@ -8,7 +8,7 @@ import { Card, CardBody, CardHeader } from "../Card/Card";
 import { StatsGrid } from "../StatsGrid/StatsGrid";
 import { StatCard } from "../StatCard/StatCard";
 import { TableWrap, Table, Th, Td, EmptyState } from "../Table/Table";
-import { TextInput } from "../Form/Inputs";
+import { TextInput, Select } from "../Form/Inputs";
 import { Button } from "../Button/Button";
 import { Chip } from "../Chip/Chip";
 import { Modal } from "../Modal/Modal";
@@ -20,6 +20,9 @@ import { dfmt, todayIso } from "../../lib/format";
 import { apiFetch } from "../../lib/apiClient";
 import { useToast } from "../Toast/ToastProvider";
 import type { CompanySettings } from "../PrintDoc/DocHead";
+import { STOCK_ENTRY_TYPES, STOCK_ENTRY_TYPE_LABEL } from "../../modules/projects/schema";
+
+type StockEntryType = (typeof STOCK_ENTRY_TYPES)[number];
 
 type PrintTarget = { kind: "report" } | { kind: "item"; item: StockItemView };
 
@@ -45,6 +48,10 @@ export function StocksClient({ items, settings }: { items: StockItemView[]; sett
   // Stock entry modal state
   const [seDate, setSeDate] = useState(todayIso());
   const [seQty, setSeQty] = useState<number>(0);
+  const [seType, setSeType] = useState<StockEntryType>("PURCHASE");
+  const [seRate, setSeRate] = useState("");
+  const [seVendor, setSeVendor] = useState("");
+  const [seRef, setSeRef] = useState("");
   const [seNote, setSeNote] = useState("");
 
   const low = items.filter((x) => x.stats.current < 0).length;
@@ -68,13 +75,25 @@ export function StocksClient({ items, settings }: { items: StockItemView[]; sett
     mutationFn: (itemId: string) =>
       apiFetch(`/api/stocks/${itemId}/entries`, {
         method: "POST",
-        body: JSON.stringify({ date: seDate, qty: seQty, note: seNote }),
+        body: JSON.stringify({
+          date: seDate,
+          qty: seQty,
+          type: seType,
+          rate: seRate === "" ? null : Number(seRate),
+          vendor: seVendor,
+          ref: seRef,
+          note: seNote,
+        }),
       }),
     onSuccess: () => {
       router.refresh();
       setStockFor(null);
       setSeDate(todayIso());
       setSeQty(0);
+      setSeType("PURCHASE");
+      setSeRate("");
+      setSeVendor("");
+      setSeRef("");
       setSeNote("");
       toast("Stock entry saved");
     },
@@ -253,16 +272,42 @@ export function StocksClient({ items, settings }: { items: StockItemView[]; sett
             <FormField label="Date">
               <TextInput type="date" value={seDate} onChange={(e) => setSeDate(e.target.value)} />
             </FormField>
-            <FormField label="Qty (use minus for outward adjustment) *">
-              <TextInput type="number" step="any" value={seQty || ""} onChange={(e) => setSeQty(Number(e.target.value) || 0)} />
+            <FormField label="Type">
+              <Select value={seType} onChange={(e) => setSeType(e.target.value as StockEntryType)}>
+                {STOCK_ENTRY_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {STOCK_ENTRY_TYPE_LABEL[t]}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+            <FormField label="Qty *">
+              <TextInput
+                type="number"
+                step="any"
+                min={0}
+                value={seQty || ""}
+                onChange={(e) => setSeQty(Number(e.target.value) || 0)}
+              />
             </FormField>
           </FormRow>
-          <FormField label="Note (vendor / invoice ref / reason)">
-            <TextInput
-              value={seNote}
-              onChange={(e) => setSeNote(e.target.value)}
-              placeholder="e.g. Purchased from Finolex dealer, Inv 2211"
-            />
+          {/* Commercial detail applies to a purchase only — it is what
+              "last purchase price" and the costing sheets read. */}
+          {seType === "PURCHASE" && (
+            <FormRow>
+              <FormField label={`Purchase rate (₹ per ${stockFor.unit})`}>
+                <TextInput type="number" min={0} value={seRate} onChange={(e) => setSeRate(e.target.value)} />
+              </FormField>
+              <FormField label="Vendor / supplier">
+                <TextInput value={seVendor} onChange={(e) => setSeVendor(e.target.value)} />
+              </FormField>
+              <FormField label="Invoice / PO ref">
+                <TextInput value={seRef} onChange={(e) => setSeRef(e.target.value)} />
+              </FormField>
+            </FormRow>
+          )}
+          <FormField label="Note">
+            <TextInput value={seNote} onChange={(e) => setSeNote(e.target.value)} placeholder="optional" />
           </FormField>
         </Modal>
       )}

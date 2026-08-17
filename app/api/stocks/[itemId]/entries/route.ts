@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 import { stockEntryInputSchema } from "../../../../../modules/projects/schema";
 import { addStockEntry } from "../../../../../services/stockService";
 import { apiErrorResponse } from "../../../../../lib/apiErrors";
+import { requirePermission } from "../../../../../lib/auth";
 
 interface Params {
   params: Promise<{ itemId: string }>;
@@ -11,6 +12,7 @@ interface Params {
 export async function POST(req: NextRequest, { params }: Params) {
   const { itemId } = await params;
   try {
+    await requirePermission("items", "create");
     const input = stockEntryInputSchema.parse(await req.json());
     const entry = await addStockEntry(itemId, input);
     return NextResponse.json({ entry }, { status: 201 });

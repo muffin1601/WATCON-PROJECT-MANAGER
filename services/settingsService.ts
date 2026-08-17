@@ -11,6 +11,11 @@ export async function updateSettings(input: SettingsInput) {
       ...(input.deletePassword
         ? { deletePasswordHash: await hashPassword(input.deletePassword) }
         : {}),
+      // Blank leaves the stored key alone; the explicit sentinel clears it.
+      // The value is never logged and never read back to the browser.
+      ...(input.anthropicApiKey
+        ? { anthropicApiKey: input.anthropicApiKey === "__CLEAR__" ? null : input.anthropicApiKey }
+        : {}),
       companyName: input.companyName,
       address: input.address,
       phone: input.phone,
@@ -20,35 +25,62 @@ export async function updateSettings(input: SettingsInput) {
       challanPrefix: input.challanPrefix,
       challanNext: input.challanNext,
       billPrefix: input.billPrefix,
+      quotePrefix: input.quotePrefix,
+      quoteNext: input.quoteNext,
       appPassword: input.appPassword,
     },
   });
 }
 
-// Ported from the prototype's "Export data backup (JSON)" button — a full
-// data dump. "Import backup" is deliberately NOT implemented: in the
-// prototype that was a client-side localStorage overwrite with no real
-// consequence; here it would mean bulk-overwriting a live production
-// database from an uploaded file, which is a different risk profile
-// entirely and needs an explicit human decision, not a button. See
-// KNOWN_LIMITATIONS.md.
+// Ported from the prototype's "Export data backup (JSON)" button — a full data
+// dump, and the format "Import backup" expects.
+//
+// IMPORTANT: this must stay in step with importBackup() in
+// services/backupService.ts. Import replaces what it restores, so anything
+// missing here would be silently lost on a restore. Every business table is
+// included for that reason; if you add a table, add it in BOTH places.
 export async function exportAllData() {
-  const [settingsRow, projects] = await Promise.all([
-    prisma.setting.findUnique({ where: { key: "default" } }),
-    prisma.project.findMany({
-      include: {
-        items: true,
-        challans: { include: { items: true, extraItems: true, documents: true } },
-        bills: { include: { lines: true } },
-        payments: { include: { documents: true } },
-        discounts: true,
-        amendments: { include: { documents: true } },
-        documents: true,
-      },
-    }),
-  ]);
-  // The deletion password hash is a credential, not business data — it has no
-  // place in a JSON backup that gets downloaded and mailed around.
-  const settings = settingsRow ? { ...settingsRow, deletePasswordHash: undefined } : settingsRow;
-  return { exportedAt: new Date().toISOString(), settings, projects };
+  const [settingsRow, projects, customers, quotations, vendors, catalog, itemMasters, rfqs, purchaseOrders] =
+    await Promise.all([
+      prisma.setting.findUnique({ where: { key: "default" } }),
+      prisma.project.findMany({
+        include: {
+          items: true,
+          orders: true,
+          challans: { include: { items: true, extraItems: true, documents: true } },
+          transports: { include: { documents: true } },
+          bills: { include: { lines: true } },
+          payments: { include: { documents: true } },
+          discounts: true,
+          amendments: { include: { documents: true } },
+          documents: true,
+        },
+      }),
+      prisma.customer.findMany(),
+      prisma.quotation.findMany({ include: { items: true } }),
+      prisma.vendor.findMany(),
+      prisma.catalogItem.findMany({ include: { components: true } }),
+      prisma.itemMaster.findMany({ include: { entries: true } }),
+      prisma.rfq.findMany({ include: { lines: true, vendors: true, responses: { include: { offers: true } } } }),
+      prisma.purchaseOrder.findMany({ include: { lines: true } }),
+    ]);
+
+  // Credentials are not business data and have no place in a JSON file that
+  // gets downloaded and mailed around.
+  const settings = settingsRow
+    ? { ...settingsRow, deletePasswordHash: undefined, anthropicApiKey: undefined }
+    : settingsRow;
+
+  return {
+    exportedAt: new Date().toISOString(),
+    settings,
+    projects,
+    customers,
+    quotations,
+    vendors,
+    catalog,
+    itemMasters,
+    rfqs,
+    purchaseOrders,
+  };
 }

@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { settingsInputSchema } from "../../../modules/settings/schema";
 import { updateSettings } from "../../../services/settingsService";
+import { requirePermission } from "../../../lib/auth";
 
 export async function PATCH(req: NextRequest) {
   try {
+    await requirePermission("settings", "amend");
     const body = await req.json();
     const input = settingsInputSchema.parse(body);
     const settings = await updateSettings(input);

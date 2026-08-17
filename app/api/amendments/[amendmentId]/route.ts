@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteAmendment } from "../../../../services/adjustmentService";
 import { apiErrorResponse } from "../../../../lib/apiErrors";
+import { requirePermission } from "../../../../lib/auth";
 
 interface Params {
   params: Promise<{ amendmentId: string }>;
@@ -9,6 +10,7 @@ interface Params {
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const { amendmentId } = await params;
   try {
+    await requirePermission("adjust", "delete");
     await deleteAmendment(amendmentId);
     return NextResponse.json({ ok: true });
   } catch (err) {

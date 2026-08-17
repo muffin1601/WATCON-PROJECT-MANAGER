@@ -4,6 +4,7 @@ import { prisma } from "../../../../../lib/prisma";
 import { poItemInputSchema } from "../../../../../modules/projects/schema";
 import { addProjectItem } from "../../../../../services/projectService";
 import { apiErrorResponse } from "../../../../../lib/apiErrors";
+import { requirePermission } from "../../../../../lib/auth";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -12,6 +13,7 @@ interface Params {
 export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params;
   try {
+    await requirePermission("salesorder", "create");
     const body = await req.json();
     const input = poItemInputSchema.parse(body);
     const count = await prisma.poItem.count({ where: { projectId: id } });

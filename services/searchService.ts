@@ -1,7 +1,19 @@
 import { prisma } from "../lib/prisma";
 
 export interface SearchResult {
-  type: "project" | "challan" | "bill" | "payment" | "document" | "documentPage" | "discount" | "amendment" | "vendor";
+  type:
+    | "project"
+    | "challan"
+    | "bill"
+    | "payment"
+    | "document"
+    | "documentPage"
+    | "discount"
+    | "amendment"
+    | "vendor"
+    | "customer"
+    | "quotation"
+    | "catalogItem";
   id: string;
   title: string;
   subtitle: string;
@@ -32,7 +44,20 @@ export async function globalSearch(query: string): Promise<SearchResult[]> {
   const q = query.trim();
   if (q.length < 2) return [];
 
-  const [projects, challans, bills, payments, documents, discounts, amendments, vendors, documentTexts] = await Promise.all([
+  const [
+    projects,
+    challans,
+    bills,
+    payments,
+    documents,
+    discounts,
+    amendments,
+    vendors,
+    documentTexts,
+    customers,
+    quotations,
+    catalogItems,
+  ] = await Promise.all([
     prisma.project.findMany({
       where: {
         OR: [
@@ -91,6 +116,43 @@ export async function globalSearch(query: string): Promise<SearchResult[]> {
         document: { select: { fileName: true, projectId: true } },
       },
     }),
+    prisma.customer.findMany({
+      where: {
+        archivedAt: null,
+        OR: [
+          { name: { contains: q, mode: "insensitive" } },
+          { phone: { contains: q, mode: "insensitive" } },
+          { email: { contains: q, mode: "insensitive" } },
+          { gstin: { contains: q, mode: "insensitive" } },
+          { refBy: { contains: q, mode: "insensitive" } },
+        ],
+      },
+      take: LIMIT_PER_TYPE,
+      select: { id: true, name: true, phone: true },
+    }),
+    prisma.quotation.findMany({
+      where: {
+        archivedAt: null,
+        OR: [
+          { ref: { contains: q, mode: "insensitive" } },
+          { client: { contains: q, mode: "insensitive" } },
+          { title: { contains: q, mode: "insensitive" } },
+        ],
+      },
+      take: LIMIT_PER_TYPE,
+      select: { id: true, ref: true, client: true, title: true },
+    }),
+    prisma.catalogItem.findMany({
+      where: {
+        archivedAt: null,
+        OR: [
+          { name: { contains: q, mode: "insensitive" } },
+          { category: { contains: q, mode: "insensitive" } },
+        ],
+      },
+      take: LIMIT_PER_TYPE,
+      select: { id: true, name: true, category: true, unit: true },
+    }),
   ]);
 
   return [
@@ -102,6 +164,21 @@ export async function globalSearch(query: string): Promise<SearchResult[]> {
     ...discounts.map((d): SearchResult => ({ type: "discount", id: d.id, title: d.reason ?? "Discount", subtitle: d.project.name, projectId: d.projectId })),
     ...amendments.map((a): SearchResult => ({ type: "amendment", id: a.id, title: a.description, subtitle: a.project.name, projectId: a.projectId })),
     ...vendors.map((v): SearchResult => ({ type: "vendor", id: v.id, title: v.name, subtitle: "Vendor", projectId: null })),
+    ...customers.map(
+      (c): SearchResult => ({ type: "customer", id: c.id, title: c.name, subtitle: c.phone || "Customer", projectId: null })
+    ),
+    ...quotations.map(
+      (x): SearchResult => ({ type: "quotation", id: x.id, title: `${x.ref} — ${x.title}`, subtitle: x.client, projectId: null })
+    ),
+    ...catalogItems.map(
+      (c): SearchResult => ({
+        type: "catalogItem",
+        id: c.id,
+        title: c.name,
+        subtitle: [c.category, c.unit].filter(Boolean).join(" · ") || "Item sheet",
+        projectId: null,
+      })
+    ),
     ...documentTexts.map(
       (t): SearchResult => ({
         type: "documentPage",

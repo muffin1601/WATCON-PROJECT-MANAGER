@@ -16,7 +16,28 @@ const TYPE_LABEL: Record<SearchResult["type"], string> = {
   discount: "Discount",
   amendment: "Amendment",
   vendor: "Vendor",
+  customer: "Customer",
+  quotation: "Quotation",
+  catalogItem: "Item sheet",
 };
+
+// Where a hit actually opens. Most records live inside a project, but
+// customers, quotations and catalogue items have their own screens — without
+// this they would all fall back to a dead "#" link.
+function resultHref(r: SearchResult): string {
+  switch (r.type) {
+    case "customer":
+      return `/customers/${r.id}`;
+    case "quotation":
+      return `/quotations/${r.id}`;
+    case "catalogItem":
+      return "/stocks";
+    case "vendor":
+      return "/stocks";
+    default:
+      return r.projectId ? `/projects/${r.projectId}` : "/";
+  }
+}
 
 // Database-driven search across projects, challans, bills, payments,
 // documents, discounts, amendments and vendors (services/searchService.ts).
@@ -79,7 +100,7 @@ export function GlobalSearch() {
             results.map((r) => (
               <Link
                 key={`${r.type}-${r.id}`}
-                href={r.projectId ? `/projects/${r.projectId}` : "#"}
+                href={resultHref(r)}
                 className={styles.item}
                 onClick={() => setOpen(false)}
               >

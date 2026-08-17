@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 import { attachChallanInputSchema, issueChallanInputSchema } from "../../../../../modules/challans/schema";
 import { createAttachedChallan, createIssuedChallan, ValidationError } from "../../../../../services/challanService";
 import { apiErrorResponse } from "../../../../../lib/apiErrors";
+import { requirePermission } from "../../../../../lib/auth";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -11,6 +12,7 @@ interface Params {
 export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params;
   try {
+    await requirePermission("challans", "create");
     const body = await req.json();
     if (body.source === "ATTACHED_EXTERNAL") {
       const input = attachChallanInputSchema.parse(body);

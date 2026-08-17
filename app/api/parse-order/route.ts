@@ -3,6 +3,7 @@ import { parseOrderFromBuffer } from "../../../services/import/orderParser";
 import { EncryptedPdfError, CorruptPdfError } from "../../../services/ocr/pdfText";
 import { MAX_FILE_SIZE_BYTES } from "../../../modules/documents/schema";
 import { formatUploadLimit } from "../../../modules/documents/uploadLimits";
+import { requirePermission } from "../../../lib/auth";
 
 // Stateless auto-read used by the New Project form: takes the attached
 // PO/BOQ file, returns best-effort extracted fields + items WITHOUT
@@ -10,6 +11,7 @@ import { formatUploadLimit } from "../../../modules/documents/uploadLimits";
 // fills itself from the response; the user reviews/edits before saving.
 export async function POST(req: NextRequest) {
   try {
+    await requirePermission("salesorder", "create");
     const form = await req.formData();
     const file = form.get("file");
     if (!(file instanceof File)) return NextResponse.json({ error: "No file provided" }, { status: 400 });

@@ -22,6 +22,7 @@ import { TableWrap, Table, Th, Td } from "../Table/Table";
 import { FileDrop } from "../FileDrop/FileDrop";
 import { AttachmentRow } from "../FileDrop/AttachmentRow";
 import { AiBadge } from "../Status/Status";
+import { CustomerPicker } from "../Customers/CustomerPicker";
 import { Chip } from "../Chip/Chip";
 import { inr, todayIso } from "../../lib/format";
 import { apiFetch } from "../../lib/apiClient";
@@ -92,6 +93,9 @@ export function ProjectForm({ gstRatePct }: { gstRatePct: number }) {
     defaultValues: {
       name: "",
       client: "",
+      customerId: null,
+      refBy: "",
+      salesPerson: "",
       site: "",
       type: "SWIMMING_POOL",
       status: "IN_PROGRESS",
@@ -106,6 +110,7 @@ export function ProjectForm({ gstRatePct }: { gstRatePct: number }) {
     },
   });
 
+  const [pickingCustomer, setPickingCustomer] = useState(false);
   const { fields, append, remove, replace } = useFieldArray({ control, name: "items" });
   const approvalMode = watch("approvalMode");
   const items = watch("items");
@@ -240,12 +245,26 @@ export function ProjectForm({ gstRatePct }: { gstRatePct: number }) {
               <TextInput placeholder="e.g. DLF Camellias — Pool & Spa" {...register("name")} />
               {errors.name && <p className={styles.error}>{errors.name.message}</p>}
             </FormField>
-            <FormField label="Client name *">
-              <TextInput {...register("client")} />
+            {/* Choosing an existing customer links the project to their record
+                (and their history); typing a new name still works — the server
+                matches or creates the customer from it on save. */}
+            <FormField label="Client / customer *">
+              <div style={{ display: "flex", gap: 6 }}>
+                <TextInput {...register("client")} />
+                <Button size="sm" type="button" onClick={() => setPickingCustomer(true)}>
+                  Choose
+                </Button>
+              </div>
               {errors.client && <p className={styles.error}>{errors.client.message}</p>}
             </FormField>
             <FormField label="Site / location">
               <TextInput {...register("site")} />
+            </FormField>
+            <FormField label="Referred by">
+              <TextInput placeholder="architect / consultant" {...register("refBy")} />
+            </FormField>
+            <FormField label="Sales person">
+              <TextInput {...register("salesPerson")} />
             </FormField>
             <FormField label="Project type">
               <Select {...register("type")}>
@@ -487,6 +506,21 @@ export function ProjectForm({ gstRatePct }: { gstRatePct: number }) {
           </div>
         </form>
       </CardBody>
+
+      {pickingCustomer && (
+        <CustomerPicker
+          onClose={() => setPickingCustomer(false)}
+          onPick={(c) => {
+            setValue("customerId", c.id, { shouldDirty: true });
+            setValue("client", c.name, { shouldDirty: true });
+            // Only fill blanks — never clobber something already typed.
+            if (!getValues("site") && c.delivery) setValue("site", c.delivery);
+            if (!getValues("refBy") && c.refBy) setValue("refBy", c.refBy);
+            if (!getValues("salesPerson") && c.salesPerson) setValue("salesPerson", c.salesPerson);
+            setPickingCustomer(false);
+          }}
+        />
+      )}
     </Card>
   );
 }

@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 import { poItemInputSchema } from "../../../../../../modules/projects/schema";
 import { deleteProjectItem, updateProjectItem } from "../../../../../../services/projectService";
 import { apiErrorResponse } from "../../../../../../lib/apiErrors";
+import { requirePermission } from "../../../../../../lib/auth";
 
 interface Params {
   params: Promise<{ id: string; itemId: string }>;
@@ -11,6 +12,7 @@ interface Params {
 export async function PATCH(req: NextRequest, { params }: Params) {
   const { itemId } = await params;
   try {
+    await requirePermission("salesorder", "amend");
     const body = await req.json();
     const input = poItemInputSchema.partial().parse(body);
     const item = await updateProjectItem(itemId, input);
@@ -26,6 +28,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const { itemId } = await params;
   try {
+    await requirePermission("salesorder", "delete");
     await deleteProjectItem(itemId);
     return NextResponse.json({ ok: true });
   } catch (err) {

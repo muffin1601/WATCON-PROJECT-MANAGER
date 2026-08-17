@@ -1,0 +1,124 @@
+/* Customers module — same visual language as the prototype's .att rows,
+   .plist cards and .note text. No new colours or radii are introduced. */
+
+.pickerList {
+  max-height: 340px;
+  overflow-y: auto;
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.pickerRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.pickerRow:last-child {
+  border-bottom: none;
+}
+.pickerRow:hover,
+.pickerRow:focus-visible {
+  background: var(--primary-soft);
+}
+
+.pickerName {
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+}
+
+.pickerMeta {
+  display: block;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.pickerNote {
+  padding: 18px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+/* Toolbar above the customers/references tables: search + actions.
+   Wraps to its own line on narrow screens instead of squeezing the input. */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.search {
+  max-width: 300px;
+}
+@media (max-width: 640px) {
+  .toolbar {
+    margin-left: 0;
+    width: 100%;
+  }
+  .search {
+    max-width: none;
+    flex: 1 1 100%;
+  }
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+
+.detailHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.detailHead h2 {
+  font-size: 22px;
+  font-weight: 800;
+}
+.detailMeta {
+  margin-top: 4px;
+  line-height: 1.8;
+  color: var(--muted);
+  font-size: 13px;
+}
+.detailActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.linkBtn {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--primary-dark);
+  font-weight: 700;
+  font-size: inherit;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.linkBtn:hover {
+  text-decoration: underline;
+}

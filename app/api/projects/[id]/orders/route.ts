@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 import { projectOrderInputSchema } from "../../../../../modules/projects/schema";
 import { addProjectOrder } from "../../../../../services/projectService";
 import { apiErrorResponse } from "../../../../../lib/apiErrors";
+import { requirePermission } from "../../../../../lib/auth";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -11,6 +12,7 @@ interface Params {
 export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params;
   try {
+    await requirePermission("salesorder", "create");
     const input = projectOrderInputSchema.parse(await req.json());
     const order = await addProjectOrder(id, input);
     return NextResponse.json({ order }, { status: 201 });

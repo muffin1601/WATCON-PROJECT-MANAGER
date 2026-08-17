@@ -5,11 +5,17 @@ import { listProjectsForDashboard, toFinProject } from "../modules/projects/data
 import { getGstRatePct } from "../lib/settings";
 import { contractValue, dispatchedValue, paidTotal } from "../services/financials";
 import { inr } from "../lib/format";
+import { getCurrentUser } from "../lib/auth";
+import { can } from "../modules/auth/permissions";
+import { NoPermission } from "../components/Auth/NoPermission";
 
 export const dynamic = "force-dynamic";
 
 // Ported from renderDash() — the top stats row + searchable project list.
 export default async function DashboardPage() {
+  const currentUser = await getCurrentUser();
+  if (!can(currentUser, "projects", "view")) return <NoPermission module="projects" />;
+
   const [projects, gstRatePct] = await Promise.all([listProjectsForDashboard(), getGstRatePct()]);
 
   const rows = projects.map((p) => {

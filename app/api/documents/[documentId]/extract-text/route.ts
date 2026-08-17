@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractDocumentText } from "../../../../../services/ocr";
+import { requirePermission } from "../../../../../lib/auth";
 
 interface Params {
   params: Promise<{ documentId: string }>;
@@ -10,6 +11,7 @@ interface Params {
 export async function POST(_req: NextRequest, { params }: Params) {
   const { documentId } = await params;
   try {
+    await requirePermission("documents", "amend");
     const result = await extractDocumentText(documentId);
     return NextResponse.json({ result });
   } catch (err) {

@@ -55,6 +55,40 @@
 .top a:hover {
   background: rgba(255, 255, 255, 0.1);
 }
+/* Logout is a <button>, so it needs the nav link's appearance explicitly —
+   ported from the prototype's `nav.top button` rule, which styled buttons. */
+.navButton {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #e8f1f2;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 13.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+.navButton:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.navButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.navButton:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+/* Ported from #userChip */
+.userChip {
+  font-size: 12.5px;
+  color: #dde9ea;
+  margin-left: 6px;
+  align-self: center;
+  white-space: nowrap;
+}
+
 .primary {
   background: var(--primary) !important;
   border-color: var(--primary) !important;
@@ -63,9 +97,40 @@
   background: var(--primary-dark) !important;
 }
 
-/* Ported from the prototype's @media(max-width:640px){ header.app .bar{padding:12px 14px} } */
+/* Ported from the prototype's @media(max-width:640px){ header.app .bar{padding:12px 14px} }
+   plus real small-screen behaviour for the six-item nav: the links become a
+   single horizontally-scrollable strip on their own row rather than wrapping
+   into a tall stack that pushes the page content below the fold. */
+@media (max-width: 860px) {
+  .top {
+    margin-left: 0;
+    width: 100%;
+    overflow-x: auto;
+    /* Space for the focus ring / rounded corners while scrolling. */
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .top::-webkit-scrollbar {
+    display: none;
+  }
+  .top a {
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+}
+
 @media (max-width: 640px) {
   .bar {
     padding: 12px 14px;
+    gap: 10px;
   }
+}
+
+/* Visible keyboard focus on the dark header, where the app's default focus
+   outline (teal on white) would be nearly invisible. */
+.top a:focus-visible,
+.brand:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }

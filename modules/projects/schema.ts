@@ -101,16 +101,47 @@ export const itemMasterInputSchema = z.object({
 });
 export type ItemMasterInput = z.infer<typeof itemMasterInputSchema>;
 
-export const stockEntryInputSchema = z.object({
-  date: z.string().min(1, "Date is required"),
-  qty: z.coerce.number().refine((v) => v !== 0, "Enter quantity"),
-  note: z.string().optional().default(""),
-});
+export const STOCK_ENTRY_TYPES = ["PURCHASE", "ADJUST_IN", "ADJUST_OUT"] as const;
+
+export const STOCK_ENTRY_TYPE_LABEL: Record<string, string> = {
+  PURCHASE: "Purchase (stock in)",
+  ADJUST_IN: "Adjustment in",
+  ADJUST_OUT: "Adjustment out / return",
+};
+
+// Ported from stockEntryModal(): qty is always entered as a positive number and
+// the TYPE decides the sign, so "adjustment out" cannot be entered as a
+// positive by mistake. Rate/vendor/ref apply to purchases only — they are what
+// "last purchase price" and the costing sheets read.
+export const stockEntryInputSchema = z
+  .object({
+    date: z.string().min(1, "Date is required"),
+    qty: z.coerce.number().positive("Enter quantity"),
+    type: z.enum(STOCK_ENTRY_TYPES).default("PURCHASE"),
+    rate: z.coerce.number().min(0).optional().nullable().default(null),
+    vendor: z.string().trim().max(200).optional().default(""),
+    ref: z.string().trim().max(200).optional().default(""),
+    note: z.string().optional().default(""),
+  })
+  .transform((v) => ({
+    ...v,
+    qty: v.type === "ADJUST_OUT" ? -Math.abs(v.qty) : Math.abs(v.qty),
+    // Only a purchase carries commercial detail; an adjustment must not leave
+    // a stale rate behind that would then be read as a purchase price.
+    rate: v.type === "PURCHASE" ? v.rate : null,
+    vendor: v.type === "PURCHASE" ? v.vendor : "",
+    ref: v.type === "PURCHASE" ? v.ref : "",
+  }));
 export type StockEntryInput = z.infer<typeof stockEntryInputSchema>;
 
 export const projectInputSchema = z.object({
   name: z.string().min(1, "Project name is required"),
   client: z.string().min(1, "Client name is required"),
+  // Optional: when absent, the service matches or creates a Customer from the
+  // `client` name so a project is never orphaned from customer history.
+  customerId: z.string().uuid().optional().nullable().default(null),
+  refBy: z.string().optional().default(""),
+  salesPerson: z.string().optional().default(""),
   site: z.string().optional().default(""),
   type: z.enum(PROJECT_TYPES),
   status: z.enum(PROJECT_STATUSES).default("IN_PROGRESS"),

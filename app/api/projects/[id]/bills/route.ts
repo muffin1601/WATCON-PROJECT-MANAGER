@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 import { generateBillInputSchema } from "../../../../../modules/challans/schema";
 import { generateRunningBill } from "../../../../../services/runningBillService";
 import { ValidationError } from "../../../../../services/challanService";
+import { requirePermission } from "../../../../../lib/auth";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -11,6 +12,7 @@ interface Params {
 export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params;
   try {
+    await requirePermission("bills", "create");
     const body = await req.json();
     const input = generateBillInputSchema.parse(body);
     const bill = await generateRunningBill(id, input);

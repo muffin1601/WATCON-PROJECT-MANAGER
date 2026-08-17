@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 import { transportInputSchema } from "../../../../../modules/projects/schema";
 import { addTransport } from "../../../../../services/transportService";
 import { apiErrorResponse } from "../../../../../lib/apiErrors";
+import { requirePermission } from "../../../../../lib/auth";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -11,6 +12,7 @@ interface Params {
 export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params;
   try {
+    await requirePermission("transport", "create");
     const input = transportInputSchema.parse(await req.json());
     const transport = await addTransport(id, input);
     return NextResponse.json({ transport }, { status: 201 });

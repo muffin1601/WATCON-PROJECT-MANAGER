@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteSalesOrder } from "../../../../../services/projectService";
 import { apiErrorResponse } from "../../../../../lib/apiErrors";
+import { requirePermission } from "../../../../../lib/auth";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -12,6 +13,7 @@ interface Params {
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const { id } = await params;
   try {
+    await requirePermission("salesorder", "delete");
     await deleteSalesOrder(id);
     return NextResponse.json({ ok: true });
   } catch (err) {

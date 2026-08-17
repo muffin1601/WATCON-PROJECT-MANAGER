@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,16 +12,23 @@ import { Button } from "../Button/Button";
 import { apiFetch } from "../../lib/apiClient";
 import { useToast } from "../Toast/ToastProvider";
 import { SettingsInput, settingsInputSchema } from "../../modules/settings/schema";
+import { DangerZoneModal } from "./DangerZoneModal";
 import styles from "./SettingsForm.module.css";
 
-// Ported from renderSettings() — company profile, GST rate, challan/bill
-// numbering. The prototype's "Anthropic API key" field is intentionally
-// absent here: OCR is a server-side provider now, not a browser-side key
-// (see KNOWN_LIMITATIONS.md). "Export data backup" is kept (safe, read-only);
-// "Import backup" is intentionally not implemented (see services/settingsService.ts).
-export function SettingsForm({ initial }: { initial: SettingsInput }) {
+// Ported from renderSettings() — company profile, GST rate, challan/bill/
+// quotation numbering, the Anthropic API key, and the data actions: Export
+// backup, Import backup and Clear all data.
+//
+// The API key differs from the prototype in one deliberate way: it is
+// write-only. The prototype kept it in localStorage where any visitor could
+// read it; here it is stored server-side, never sent back to the browser, and
+// the field always renders blank.
+// `hasApiKey` is a boolean only — whether a key exists, never the key itself.
+export function SettingsForm({ initial }: { initial: SettingsInput & { hasApiKey: boolean } }) {
   const router = useRouter();
   const toast = useToast();
+  const [danger, setDanger] = useState<null | { mode: "clear" | "import"; backup?: unknown }>(null);
+  const importRef = useRef<HTMLInputElement>(null);
 
   const {
     register,
@@ -84,9 +92,27 @@ export function SettingsForm({ initial }: { initial: SettingsInput }) {
             <FormField label="Bill number prefix">
               <TextInput {...register("billPrefix")} />
             </FormField>
+            <FormField label="Quotation number prefix">
+              <TextInput {...register("quotePrefix")} />
+            </FormField>
+            <FormField label="Next quotation number">
+              <TextInput type="number" {...register("quoteNext")} />
+              {errors.quoteNext && <p className={styles.error}>{errors.quoteNext.message}</p>}
+            </FormField>
             <FormField label="Edit/delete password (challans)">
               <TextInput {...register("appPassword")} />
               {errors.appPassword && <p className={styles.error}>{errors.appPassword.message}</p>}
+            </FormField>
+            {/* Write-only, like the deletion password below: the stored key is
+                never sent to the browser, so this always renders blank. */}
+            <FormField label="Anthropic API key (leave blank to keep current)">
+              <TextInput
+                type="password"
+                autoComplete="off"
+                placeholder={initial.hasApiKey ? "•••••••• (a key is saved)" : "sk-ant-…"}
+                {...register("anthropicApiKey")}
+              />
+              {errors.anthropicApiKey && <p className={styles.error}>{errors.anthropicApiKey.message}</p>}
             </FormField>
             {/* Write-only: stored as a hash, so there is nothing to show here.
                 Left blank, the current password is kept unchanged. */}
@@ -102,14 +128,60 @@ export function SettingsForm({ initial }: { initial: SettingsInput }) {
             <Button type="button" onClick={exportBackup}>
               Export data backup (JSON)
             </Button>
+            <Button type="button" onClick={() => importRef.current?.click()}>
+              Import backup
+            </Button>
+            <input
+              ref={importRef}
+              type="file"
+              accept="application/json,.json"
+              style={{ display: "none" }}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (!file) return;
+                try {
+                  const parsed = JSON.parse(await file.text());
+                  if (!parsed || !Array.isArray(parsed.projects)) {
+                    toast("That file is not a Watcon backup (it has no projects list).");
+                    return;
+                  }
+                  setDanger({ mode: "import", backup: parsed });
+                } catch {
+                  toast("Could not read that file — it is not valid JSON.");
+                }
+              }}
+            />
+            <Button
+              type="button"
+              variant="danger"
+              style={{ marginLeft: "auto" }}
+              onClick={() => setDanger({ mode: "clear" })}
+            >
+              Clear all data…
+            </Button>
           </div>
           <p className={styles.note}>
             Data is stored in Supabase Postgres and Storage. Take a JSON backup regularly — attachment metadata is
-            included, but re-importing a backup is intentionally not supported (a bulk overwrite of a live production
-            database needs a deliberate, reviewed operation, not a button).
+            included in the backup, but the stored files themselves are not, so a full restore also needs Supabase&apos;s
+            own storage backup. Importing a backup and clearing all data both replace live data and require the
+            deletion password.
           </p>
         </form>
       </CardBody>
+
+      {danger && (
+        <DangerZoneModal
+          mode={danger.mode}
+          backup={danger.backup}
+          onClose={() => setDanger(null)}
+          onExport={exportBackup}
+          onDone={() => {
+            setDanger(null);
+            router.refresh();
+          }}
+        />
+      )}
     </Card>
   );
 }

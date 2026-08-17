@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 import { paymentInputSchema } from "../../../../../modules/projects/schema";
 import { recordPayment } from "../../../../../services/projectService";
 import { apiErrorResponse } from "../../../../../lib/apiErrors";
+import { requirePermission } from "../../../../../lib/auth";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -11,6 +12,7 @@ interface Params {
 export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params;
   try {
+    await requirePermission("payments", "create");
     const body = await req.json();
     const input = paymentInputSchema.parse(body);
     const payment = await recordPayment(id, input);

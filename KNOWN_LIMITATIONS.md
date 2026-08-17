@@ -34,7 +34,7 @@ Several phase prompts during this build described functionality that doesn't exi
 - **Site Accounts** is a read-only computed statement (material sent, discounts, GST, billed, unbilled, received, balance), not an editable debit/credit ledger with linked-entity fields. The prototype's `tabAccounts()` has no add/edit/delete — it's entirely derived from challans, bills, discounts, and payments already recorded elsewhere.
 - **Documents** is a per-entity attachment model (order copy, approval proof, challan copies, amendment approvals), not a categorized document library with Invoices/Drawings/Contracts/Photos/Other categories. The prototype's `tabDocs()` has no such categorization.
 - **Reports module**: there is no dedicated "Reports" page/section, because the prototype has none. Its only reporting/export surface is the print documents (challan, running bill, site account statement) — already built pixel-matched to the prototype. No Excel export exists in the prototype, so none was added.
-- **Advanced filters** (status/date-range/vendor/type dropdowns): the prototype has only a single client-side text search on the dashboard project list. That was kept as-is; no new filter UI was invented on top of it.
+- **Advanced filters** (status/date-range/vendor/type dropdowns): the prototype has only a single client-side text search on the dashboard project list. That was kept as-is on the dashboard. The newer Customers, Item Sheet and Quotations screens **do** have database-backed search, filtering, sorting and pagination, because those lists grow without bound and cannot be filtered in the browser.
 
 If any of these should actually be built as new functionality (not a port), that's a product decision for a human to make explicitly — it wasn't assumed.
 
@@ -43,9 +43,49 @@ If any of these should actually be built as new functionality (not a port), that
 - The prototype's "Anthropic API key" field is intentionally absent, and stays absent now that the AI engine exists. The prototype needed it because it called the Anthropic API from the browser, which meant the key sat in `localStorage` where any visitor to the deployed page could read it. Here the key is a server-side env var (`ANTHROPIC_API_KEY`) that never reaches the client, so there is deliberately no user-facing field for it.
 - **"Import backup" is not implemented.** The prototype's version was a client-side `localStorage` overwrite with no real consequence. Here it would mean bulk-overwriting a live production database from an uploaded JSON file — a fundamentally different risk that deserves a deliberate, reviewed script, not a button in a settings page. Export (read-only) is implemented.
 
-## Vendor-facing Purchase Order module
+## Purchase module — implemented
 
-`PurchaseOrder`/`PoLineItem`/`Vendor` exist in the schema (required by the original master spec) and are searchable, but there is no UI to create/manage them — the prototype itself has no such screens (its "Sales Order" is a different thing, already built). This is schema-only scaffolding for a future module, not a broken feature.
+Suppliers, the three-step Rate Inquiry wizard, the self-contained supplier reply form and its import, the landed-rate comparison sheet, PO issue, PO receipts and all three print documents (Rate Inquiry, Rate Comparison Sheet, Purchase Order) are built and tested.
+
+Two things worth knowing about receipts:
+
+- **`receivedQty` is a running total, not an increment.** The server posts only the difference to stock, so saving the same figure twice adds nothing. Re-entering a lower figure posts a negative `ADJUST_OUT` rather than rewriting history.
+- **A downward correction carries no rate or vendor**, deliberately: recording it as a purchase would corrupt the "last purchase price" that both costing sheets read.
+
+## Backup import / export
+
+`exportAllData()` and `importBackup()` **must stay in step**. Import replaces what it restores, so any table present in one and missing from the other is a data-loss bug. Two rules encode this:
+
+1. The export covers every business table (projects and all their children, customers, quotations, vendors, the item sheet, item masters with stock entries, rate inquiries and purchase orders).
+2. The import only clears a table when the file actually carries a section for it. An older backup that predates a section therefore leaves that table alone instead of destroying data it cannot put back.
+
+Credentials (the deletion password hash and the Anthropic API key) are never written into a backup and never restored from one.
+
+Attachment **files** are still not in the backup — only their metadata rows. The files live in Supabase Storage and are untouched by import/export, so a restore re-attaches documents that are still there; a full disaster recovery also needs Supabase's own storage backup.
+
+## Customers, Item Sheet and Quotations (added — what is and isn't covered)
+
+These three modules are fully built end-to-end (schema, migration, service, API, UI, print) and were tested against the live database. What they deliberately do **not** yet include:
+
+- **Costing sheets** (Project Costing tab and the Quotation Costing sheet tab) are built. The automatic cost rate comes from the Item Sheet's purchase list price less our purchase discount, falling back to the most recent real purchase; per-line manual overrides are stored per project/quotation. Both are gated on the `costing` permission, so a salesperson can quote without seeing what the company pays.
+- **Quotation attachments.** Quotations have no document attachments of their own; projects still do. The prototype has none either.
+- **Customer archive vs delete.** Customers and catalogue items with history are archived, never hard-deleted, so nothing that a project or quotation points at can vanish. Only a completely unused record can be deleted outright. This is intentional, not a missing feature.
+
+## Authentication & permissions — now implemented
+
+The app is **no longer public**. Sign-in, per-module View/Create/Amend/Delete permissions and the Admin user panel from the reference HTML are all built, with the changes a real server requires:
+
+- Passwords are stored only as scrypt hashes; the prototype's plaintext-in-localStorage model is not reproduced.
+- The browser holds an opaque random session token in an `httpOnly` cookie; only a SHA-256 hash of it is stored, so database read access does not grant login.
+- **Authorisation is enforced server-side in all 61 API handlers** via `requirePermission(module, action)`, not by hiding buttons. `middleware.ts` additionally rejects any unauthenticated API request before it reaches a handler.
+- Sign-in failures return one message for unknown user / wrong password / deactivated account, and spend the same hashing time either way, so the form cannot enumerate usernames.
+- The last active administrator cannot be demoted, deactivated or deleted, and no route ever selects `passwordHash` into a payload.
+
+First run creates the `admin` account using the existing Settings password, so an existing deployment is not locked out. Change it from Admin immediately.
+
+Two deliberate deviations from the prototype, both because it ran entirely in the browser:
+- **Permissions are re-checked on the server.** In the prototype `can()` ran in the browser and could be bypassed from the console.
+- **Costing is gated on its own `costing` permission**, so a salesperson can quote without seeing what the company pays.
 
 ## Responsive / Accessibility / Performance
 

@@ -128,11 +128,15 @@ enum ActivityAction {
 }
 
 // ---------- Core ----------
-// No auth/users table: this app is public, single-tenant, no login (see PLAN.md).
+// Sign-in and per-module permissions live in User/Session at the end of this
+// file. Every API route resolves the caller from the session cookie and checks
+// its own permission server-side — the client's copy of `perms` only decides
+// what to render.
 
 model Vendor {
   id        String   @id @default(uuid())
   name      String
+  contact   String? // contact person at the supplier
   gstin     String?
   phone     String?
   email     String?
@@ -141,33 +145,51 @@ model Vendor {
   updatedAt DateTime @updatedAt
 
   purchaseOrders PurchaseOrder[]
+  rfqVendors     RfqVendor[]
+  rfqResponses   RfqResponse[]
 
   @@map("vendors")
 }
 
 model Setting {
-  id            String   @id @default(uuid())
-  key           String   @unique // e.g. "company_profile", "numbering"
-  companyName   String   @default("Watcon International")
-  address       String   @default("S-36, Okhla Phase 2, New Delhi 110020")
-  phone         String   @default("9999969661")
-  email         String   @default("info@watcon.net")
-  gstin         String?
-  gstRatePct    Decimal  @default(18) @db.Decimal(5, 2)
-  challanPrefix String   @default("WC/CH/")
-  challanNext   Int      @default(1)
-  billPrefix    String   @default("RA-")
+  id                 String   @id @default(uuid())
+  key                String   @unique // e.g. "company_profile", "numbering"
+  companyName        String   @default("Watcon International")
+  address            String   @default("S-36, Okhla Phase 2, New Delhi 110020")
+  phone              String   @default("9999969661")
+  email              String   @default("info@watcon.net")
+  gstin              String?
+  gstRatePct         Decimal  @default(18) @db.Decimal(5, 2)
+  challanPrefix      String   @default("WC/CH/")
+  challanNext        Int      @default(1)
+  billPrefix         String   @default("RA-")
+  // Quotation numbering. quoteNext is incremented atomically inside the
+  // quotation-create transaction (UPDATE ... RETURNING), never read-then-write
+  // from the client, so two concurrent requests can never take the same number.
+  quotePrefix        String   @default("WI/QTN/")
+  quoteNext          Int      @default(1)
+  // Rate-inquiry and purchase-order numbering, allocated the same atomic way.
+  rfqPrefix          String   @default("WI/RFQ/")
+  rfqNext            Int      @default(1)
+  poPrefix           String   @default("WI/PO/")
+  poNext             Int      @default(1)
   // Soft gate for challan edit/delete (the prototype's APP_PWD prompt) —
   // NOT a security boundary: the app is public/no-auth by design, and this
   // value reaches the client. It only prevents accidental edits.
-  appPassword   String   @default("pincode110020")
+  appPassword        String   @default("pincode110020")
   // Gate for deleting an ENTIRE project — a genuinely irreversible action, so
   // unlike appPassword above this is a real boundary: only a scrypt hash is
   // stored, it is never selected into any payload that reaches the browser,
   // and verification happens server-side inside the delete request itself.
   // See lib/deletePassword.ts.
   deletePasswordHash String?
-  updatedAt     DateTime @updatedAt
+  // Anthropic API key for the AI document engine, settable from Settings as in
+  // the prototype. WRITE-ONLY: it is never selected into any payload that
+  // reaches the browser (unlike the prototype, which kept it in localStorage
+  // where any visitor could read it), and never logged. ANTHROPIC_API_KEY in
+  // the environment still wins when both are present.
+  anthropicApiKey    String?
+  updatedAt          DateTime @updatedAt
 
   @@map("settings")
 }
@@ -175,12 +197,22 @@ model Setting {
 // ---------- Project ----------
 
 model Project {
-  id     String        @id @default(uuid())
-  name   String
-  client String
-  site   String?
-  type   ProjectType
-  status ProjectStatus @default(IN_PROGRESS)
+  id          String        @id @default(uuid())
+  name        String
+  // Denormalized customer name. Kept as the source of truth for existing rows
+  // (the app had no Customer table until now) and always mirrored from
+  // customer.name when a project IS linked, so every existing project keeps
+  // rendering unchanged whether or not it has been linked yet.
+  client      String
+  customerId  String?
+  customer    Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  // Who introduced the business, and who owns it internally. Rolls up into the
+  // Customers > References report.
+  refBy       String?
+  salesPerson String?
+  site        String?
+  type        ProjectType
+  status      ProjectStatus @default(IN_PROGRESS)
 
   approvalMode      ApprovalMode @default(PURCHASE_ORDER)
   approvalBasisNote String? // free text for verbal approval
@@ -193,6 +225,13 @@ model Project {
   paymentTerms   String?
 
   aiGenerated Boolean @default(false) // sales order was drafted via OCR
+
+  // Project Costing tab. Mirrors the prototype's `p.costing` exactly:
+  //   { items: { <poItemId>: { rate?, qty? } }, extras: [ { name, amount } ] }
+  // Only per-project OVERRIDES live here — the automatic cost rate is derived
+  // from the item sheet at read time, so a price change on the sheet flows
+  // through instead of being frozen into a stale copy.
+  costing Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -210,9 +249,48 @@ model Project {
   activityLogs   ActivityLog[]
   extractionJobs ExtractionJob[]
 
+  quotations Quotation[]
+
   @@index([client])
   @@index([status])
+  @@index([customerId])
   @@map("projects")
+}
+
+// ---------- Customers & references ----------
+// Central customer record. Projects and quotations link here; the Customers
+// screen aggregates contract value / goods sent / received / due across both.
+
+model Customer {
+  id       String @id @default(uuid())
+  name     String
+  // Lowercased, whitespace-collapsed name — the uniqueness key, so "ABC Ltd"
+  // and "abc  ltd" cannot both exist and silently split one customer's history.
+  normName String @unique
+
+  billing  String?
+  delivery String?
+  phone    String?
+  email    String?
+  gstin    String?
+
+  refBy       String? // architect / consultant who referred them
+  salesPerson String?
+  notes       String?
+
+  // Soft delete: customers are referenced by projects and quotations, so they
+  // are archived rather than destroyed. Archived customers stay linked and
+  // readable, they just drop out of pickers and the default list.
+  archivedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projects   Project[]
+  quotations Quotation[]
+
+  @@index([archivedAt])
+  @@map("customers")
 }
 
 // Sales order line item (called PoItem to match the PO module naming, but
@@ -288,11 +366,24 @@ model PurchaseOrder {
   poNumber  String              @unique
   vendorId  String
   vendor    Vendor              @relation(fields: [vendorId], references: [id])
-  projectId String
-  project   Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // Optional: a PO raised from a rate inquiry buys for whichever projects that
+  // inquiry covered, which can be several. The per-line projectNames snapshot
+  // records what each item is for.
+  projectId String?
+  project   Project?            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  rfqId     String?
+  rfq       Rfq?                @relation(fields: [rfqId], references: [id], onDelete: SetNull)
   status    PurchaseOrderStatus @default(DRAFT)
   poDate    DateTime
   remarks   String?
+
+  // Supplier terms carried over from their quotation.
+  transport     Decimal @default(0) @db.Decimal(14, 2)
+  transportGst  Decimal @default(0) @db.Decimal(5, 2)
+  transportNote String?
+  delivery      String?
+  payment       String?
+  deliverTo     String?
 
   subtotal       Decimal @default(0) @db.Decimal(14, 2)
   taxAmount      Decimal @default(0) @db.Decimal(14, 2)
@@ -319,12 +410,23 @@ model PoLineItem {
   linkedItem      PoItem?       @relation(fields: [linkedItemId], references: [id], onDelete: SetNull)
 
   description    String
+  make           String  @default("")
   unit           String  @default("Nos")
   qty            Decimal @db.Decimal(14, 3)
   unitPrice      Decimal @db.Decimal(14, 2)
   taxPct         Decimal @default(0) @db.Decimal(5, 2)
   discountAmount Decimal @default(0) @db.Decimal(14, 2)
   total          Decimal @db.Decimal(14, 2)
+  remark         String?
+
+  // Which projects this line is being bought for (snapshot from the inquiry).
+  projectNames String[] @default([])
+
+  // Quantity received so far. Editing it posts the DIFFERENCE to stock as a
+  // purchase entry, so re-saving the same number never double-counts.
+  receivedQty Decimal @default(0) @db.Decimal(14, 3)
+
+  sortOrder Int @default(0)
 
   @@index([purchaseOrderId])
   @@map("po_line_items")
@@ -528,10 +630,10 @@ model Amendment {
 // be added manually. Required/delivered/pending are computed across all
 // projects at read time; only inward stock entries are stored.
 model ItemMaster {
-  id   String @id @default(uuid())
-  name String
-  make String @default("")
-  unit String @default("Nos")
+  id      String @id @default(uuid())
+  name    String
+  make    String @default("")
+  unit    String @default("Nos")
   // normalized "name|make|unit" (lowercased, whitespace collapsed) — the
   // prototype's normKey(), enforced unique at the DB level.
   normKey String @unique
@@ -553,10 +655,27 @@ model StockEntry {
   qty  Decimal  @db.Decimal(14, 3) // negative = outward adjustment
   note String?
 
+  // Entry kind, matching the prototype's stockEntryModal: a purchase also
+  // carries rate/vendor/invoice ref, which is what "last purchase price" and
+  // the costing sheets read. Adjustments carry none of those.
+  // Rows created before this existed default to ADJUST_IN, deliberately: they
+  // have no rate, so treating them as purchases would corrupt the last-purchase
+  // price used for costing.
+  type   StockEntryType @default(ADJUST_IN)
+  rate   Decimal?       @db.Decimal(14, 2)
+  vendor String?
+  ref    String? // invoice / PO reference
+
   createdAt DateTime @default(now())
 
   @@index([itemMasterId, date])
   @@map("stock_entries")
+}
+
+enum StockEntryType {
+  PURCHASE
+  ADJUST_IN
+  ADJUST_OUT
 }
 
 // ---------- Documents (Supabase Storage metadata) & OCR ----------
@@ -697,15 +816,15 @@ model ExtractionJob {
   // one serverless invocation, so it is sliced into page ranges that are read
   // one per invocation and reassembled here. 0 totalChunks means the document
   // was short enough to read in a single call — the original path.
-  totalChunks  Int     @default(0)
-  chunksDone   Int     @default(0)
+  totalChunks   Int   @default(0)
+  chunksDone    Int   @default(0)
   // Storage paths of the staged page slices, in page order. Removed once the
   // job reaches a terminal state.
-  chunkPaths   Json?
+  chunkPaths    Json?
   // Per-chunk AiOrderResults accumulated so far, merged when the last chunk
   // lands. Held here rather than in memory because each chunk runs in a
   // different invocation with no shared state.
-  chunkResults Json?
+  chunkResults  Json?
   // Per-chunk retry counts, keyed by chunk index.
   chunkAttempts Json?
 
@@ -761,4 +880,385 @@ model ActivityLog {
 
   @@index([projectId, createdAt])
   @@map("activity_logs")
+}
+
+// ---------- Item Sheet (product catalogue) ----------
+// The master product list behind every picker in the app. Distinct from
+// ItemMaster above: ItemMaster is a STOCK row (one per item+make+unit, holding
+// physical stock movements), whereas CatalogItem is the PRODUCT definition —
+// what we sell, which brands make it, what it lists at, what it costs us, and
+// which parts it is assembled from.
+
+model CatalogItem {
+  id       String @id @default(uuid())
+  name     String
+  // Lowercased/collapsed name — unique, so the same product cannot be entered
+  // twice under two spellings and split its pricing history.
+  normName String @unique
+
+  unit     String  @default("Nos")
+  category String?
+  hsn      String?
+  details  String? // specification text, optionally printed under quote lines
+
+  // Brands that manufacture this item. A quotation line may offer any subset.
+  makes String[] @default([])
+
+  // Client-facing pricing. sellPrice is the LIST rate; discountPct is the
+  // standard discount, applied as its own line on quotations so the printed
+  // document shows list rate and discount separately, as the business does.
+  sellPrice   Decimal? @db.Decimal(14, 2)
+  discountPct Decimal? @db.Decimal(5, 2)
+
+  // Our buying side, used to derive cost rates for costing sheets:
+  // net cost = purchasePrice * (1 - purchaseDiscPct/100).
+  purchasePrice   Decimal? @db.Decimal(14, 2)
+  purchaseDiscPct Decimal? @db.Decimal(5, 2)
+
+  // Product photo in Supabase Storage (same bucket as documents).
+  imagePath String?
+  imageMime String?
+
+  archivedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  components     CatalogComponent[]
+  quotationItems QuotationItem[]
+
+  @@index([category])
+  @@index([archivedAt])
+  @@map("catalog_items")
+}
+
+// Bill of materials for assembly/bundle items: one Jacuzzi = 2 x pump,
+// 5 x nozzle. Quantities are PER ONE unit of the parent item.
+model CatalogComponent {
+  id            String      @id @default(uuid())
+  catalogItemId String
+  catalogItem   CatalogItem @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
+
+  name String
+  make String  @default("")
+  unit String  @default("Nos")
+  qty  Decimal @db.Decimal(14, 3)
+
+  sortOrder Int @default(0)
+
+  @@index([catalogItemId])
+  @@map("catalog_components")
+}
+
+// ---------- Quotations ----------
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CONVERTED
+}
+
+enum ChargeMode {
+  INCLUDED
+  EXTRA
+}
+
+enum InstallBasis {
+  PERCENT
+  LUMPSUM
+  PER_UNIT
+}
+
+model Quotation {
+  id   String   @id @default(uuid())
+  ref  String   @unique // WI/QTN/001 — allocated atomically from Setting.quoteNext
+  date DateTime
+
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  // Denormalized so a quotation still prints correctly if the customer is
+  // later archived or renamed after the document was sent.
+  client     String
+  billing    String?
+  delivery   String?
+
+  title       String // project title
+  refBy       String?
+  salesPerson String?
+
+  status       QuotationStatus @default(DRAFT)
+  validityDays Int             @default(30)
+
+  // Default discount applied to lines that don't carry their own discPct.
+  discountPct Decimal @default(0) @db.Decimal(5, 2)
+
+  installMode  ChargeMode   @default(INCLUDED)
+  installBasis InstallBasis @default(PERCENT)
+  installValue Decimal      @default(0) @db.Decimal(14, 2)
+
+  transportMode   ChargeMode @default(INCLUDED)
+  transportAmount Decimal    @default(0) @db.Decimal(14, 2)
+
+  gstMode ChargeMode @default(EXTRA)
+  gstPct  Decimal    @default(18) @db.Decimal(5, 2)
+
+  // Optional hard round of the grand total (the prototype's "Rounded to Rs.").
+  roundTo Decimal? @db.Decimal(14, 2)
+
+  note  String?
+  terms String?
+
+  showDetails       Boolean @default(false) // print catalogue spec under each line
+  areaTotalsWithGst Boolean @default(false)
+
+  // Ordered area / sub-heading names ("Bathroom A", "Kitchen"). Items carry a
+  // matching `section` string; anything blank prints as "Other items".
+  sections String[] @default([])
+
+  // Totals are computed server-side on every write (services/quotationTotals.ts)
+  // and stored so printed/list figures can never drift from a client that
+  // posted tampered numbers — the client's totals are ignored entirely.
+  subtotal       Decimal @default(0) @db.Decimal(14, 2)
+  discountAmount Decimal @default(0) @db.Decimal(14, 2)
+  netAmount      Decimal @default(0) @db.Decimal(14, 2)
+  installAmount  Decimal @default(0) @db.Decimal(14, 2)
+  roundedAmount  Decimal @default(0) @db.Decimal(14, 2)
+  gstAmount      Decimal @default(0) @db.Decimal(14, 2)
+  grandTotal     Decimal @default(0) @db.Decimal(14, 2)
+
+  // Quotation Costing sheet. Mirrors the prototype's `q.costing`:
+  //   { items: { <quotationItemId>: { rate? } }, installPct, extras: [ { name, amount } ] }
+  costing Json?
+
+  // Set when "Convert to project" succeeds; blocks a second conversion.
+  convertedProjectId String?
+  convertedProject   Project?  @relation(fields: [convertedProjectId], references: [id], onDelete: SetNull)
+  convertedAt        DateTime?
+
+  archivedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items QuotationItem[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([date])
+  @@map("quotations")
+}
+
+model QuotationItem {
+  id          String    @id @default(uuid())
+  quotationId String
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  // Soft link to the catalogue. SetNull so archiving a product never destroys
+  // a quotation that already quoted it.
+  catalogItemId String?
+  catalogItem   CatalogItem? @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
+
+  section     String   @default("")
+  description String
+  makes       String[] @default([]) // approved makes offered for this line
+  unit        String   @default("Nos")
+  qty         Decimal  @db.Decimal(14, 3)
+  rate        Decimal  @db.Decimal(14, 2) // LIST rate before discount
+  // Per-line discount override; null = use the quotation's default discountPct.
+  discPct     Decimal? @db.Decimal(5, 2)
+
+  sortOrder Int @default(0)
+
+  @@index([quotationId])
+  @@map("quotation_items")
+}
+
+// ---------- Rate Inquiry (RFQ) ----------
+// The prototype's Purchase module: pick projects -> pick items (pending
+// delivery, netted against stock) -> send each supplier a form -> import their
+// replies -> compare landed rates -> issue one PO per chosen supplier.
+
+enum RfqStatus {
+  SENT
+  COMPARING
+  PO_ISSUED
+}
+
+model Rfq {
+  id   String    @id @default(uuid())
+  no   String    @unique // WI/RFQ/001 — allocated atomically from Setting.rfqNext
+  date DateTime
+  due  DateTime? // rates required by
+
+  deliverTo String?
+  note      String?
+
+  status RfqStatus @default(SENT)
+
+  // Projects this inquiry covers. Plain id list: the projects only scope which
+  // pending quantities were offered, they are not a lasting relationship, and
+  // a deleted project must not cascade away the purchasing history.
+  projectIds String[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lines          RfqLine[]
+  vendors        RfqVendor[]
+  responses      RfqResponse[]
+  purchaseOrders PurchaseOrder[]
+
+  @@index([status, date])
+  @@map("rfqs")
+}
+
+model RfqLine {
+  id    String @id @default(uuid())
+  rfqId String
+  rfq   Rfq    @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+
+  name     String
+  make     String  @default("")
+  unit     String  @default("Nos")
+  category String?
+
+  // Snapshot of the figures the inquiry was built from, so the sheet still
+  // reads correctly later even after stock and dispatches have moved on.
+  required Decimal @db.Decimal(14, 3)
+  stock    Decimal @default(0) @db.Decimal(14, 3)
+  qty      Decimal @db.Decimal(14, 3) // quantity actually being asked for
+
+  projectNames String[] @default([])
+
+  sortOrder Int @default(0)
+
+  offers         RfqOffer[]
+  // Supplier chosen for this line in the comparison sheet.
+  chosenVendorId String?
+
+  @@index([rfqId])
+  @@map("rfq_lines")
+}
+
+// Which suppliers this inquiry was sent to.
+model RfqVendor {
+  id       String @id @default(uuid())
+  rfqId    String
+  rfq      Rfq    @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  vendorId String
+  vendor   Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@unique([rfqId, vendorId])
+  @@index([rfqId])
+  @@map("rfq_vendors")
+}
+
+// One supplier's reply: the header terms plus a per-line offer.
+model RfqResponse {
+  id       String @id @default(uuid())
+  rfqId    String
+  rfq      Rfq    @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  vendorId String
+  vendor   Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  quotedBy String?
+  contact  String?
+  ref      String?
+  validity Int?
+
+  transport     Decimal @default(0) @db.Decimal(14, 2)
+  transportGst  Decimal @default(0) @db.Decimal(5, 2)
+  transportNote String?
+
+  delivery String?
+  payment  String?
+  remarks  String?
+
+  // true when keyed in by hand from a phone call / paper quote rather than
+  // imported from the supplier's own reply file.
+  manual Boolean @default(false)
+
+  filledAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  offers RfqOffer[]
+
+  @@unique([rfqId, vendorId])
+  @@index([rfqId])
+  @@map("rfq_responses")
+}
+
+model RfqOffer {
+  id         String      @id @default(uuid())
+  responseId String
+  response   RfqResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  lineId     String
+  line       RfqLine     @relation(fields: [lineId], references: [id], onDelete: Cascade)
+
+  // null rate = "cannot supply this item", which is different from quoting 0.
+  rate   Decimal? @db.Decimal(14, 2)
+  gstPct Decimal  @default(0) @db.Decimal(5, 2)
+  remark String?
+
+  @@unique([responseId, lineId])
+  @@index([lineId])
+  @@map("rfq_offers")
+}
+
+// ---------- Users, sessions & permissions ----------
+// The prototype gained a login screen with per-module View/Create/Amend/Delete
+// rights and an Admin panel. Reproduced here, with the differences a real
+// server demands: passwords are stored only as a scrypt hash (the prototype
+// kept them in plain text in localStorage), and the browser holds an opaque
+// session token rather than the user record itself, so permissions cannot be
+// edited client-side to grant access.
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+model User {
+  id           String @id @default(uuid())
+  name         String
+  username     String @unique
+  // Lowercased username — sign-in is case-insensitive, as in the prototype.
+  normUsername String @unique
+
+  passwordHash String
+
+  role   UserRole @default(USER)
+  active Boolean  @default(true)
+
+  // { "<module>": { view?: true, create?: true, amend?: true, delete?: true } }
+  // Ignored entirely for ADMIN, who always has every right.
+  perms Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions Session[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String @id @default(uuid())
+  // SHA-256 of the cookie value. Storing the raw token would let anyone with
+  // database read access impersonate a signed-in user.
+  tokenHash String @unique
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
 }

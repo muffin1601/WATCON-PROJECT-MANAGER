@@ -9,6 +9,7 @@ import {
 import { removeStorageObjects } from "../../../../services/documentService";
 import { verifyDeletePassword, DeleteAuthorisationError } from "../../../../lib/deletePassword";
 import { apiErrorResponse } from "../../../../lib/apiErrors";
+import { requirePermission } from "../../../../lib/auth";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -17,6 +18,7 @@ interface Params {
 export async function PATCH(req: NextRequest, { params }: Params) {
   const { id } = await params;
   try {
+    await requirePermission("projects", "amend");
     const body = await req.json();
     const input = projectUpdateSchema.parse(body);
     const project = await updateProject(id, input);
@@ -48,6 +50,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
   let password: unknown;
   try {
+    await requirePermission("projects", "delete");
     const body = await req.json();
     password = (body as { password?: unknown })?.password;
   } catch {

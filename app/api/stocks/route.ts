@@ -3,9 +3,11 @@ import { ZodError } from "zod";
 import { itemMasterInputSchema } from "../../../modules/projects/schema";
 import { createItemMaster, listItemsWithStats, StockValidationError } from "../../../services/stockService";
 import { apiErrorResponse } from "../../../lib/apiErrors";
+import { requirePermission } from "../../../lib/auth";
 
 export async function GET() {
   try {
+    await requirePermission("items", "view");
     const items = await listItemsWithStats();
     return NextResponse.json({ items });
   } catch (err) {
@@ -15,6 +17,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    await requirePermission("items", "create");
     const input = itemMasterInputSchema.parse(await req.json());
     const item = await createItemMaster(input);
     return NextResponse.json({ item }, { status: 201 });

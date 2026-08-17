@@ -9,6 +9,7 @@ import {
 } from "../../../../services/challanService";
 import { prisma } from "../../../../lib/prisma";
 import { apiErrorResponse } from "../../../../lib/apiErrors";
+import { requirePermission } from "../../../../lib/auth";
 
 interface Params {
   params: Promise<{ challanId: string }>;
@@ -17,6 +18,7 @@ interface Params {
 export async function PATCH(req: NextRequest, { params }: Params) {
   const { challanId } = await params;
   try {
+    await requirePermission("challans", "amend");
     const existing = await prisma.challan.findUnique({ where: { id: challanId }, select: { projectId: true, source: true } });
     if (!existing) return NextResponse.json({ error: "Challan not found" }, { status: 404 });
 
@@ -43,6 +45,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const { challanId } = await params;
   try {
+    await requirePermission("challans", "delete");
     await deleteChallan(challanId);
     return NextResponse.json({ ok: true });
   } catch (err) {

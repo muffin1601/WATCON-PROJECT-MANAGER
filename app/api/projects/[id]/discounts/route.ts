@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 import { discountInputSchema } from "../../../../../modules/adjustments/schema";
 import { addDiscount } from "../../../../../services/adjustmentService";
 import { apiErrorResponse } from "../../../../../lib/apiErrors";
+import { requirePermission } from "../../../../../lib/auth";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -11,6 +12,7 @@ interface Params {
 export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params;
   try {
+    await requirePermission("adjust", "create");
     const body = await req.json();
     const input = discountInputSchema.parse(body);
     const discount = await addDiscount(id, input);

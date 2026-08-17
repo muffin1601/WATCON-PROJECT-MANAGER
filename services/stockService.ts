@@ -59,8 +59,19 @@ export interface ItemMasterWithStats {
   name: string;
   make: string;
   unit: string;
-  entries: { id: string; date: string; qty: number; note: string | null }[];
+  entries: {
+    id: string;
+    date: string;
+    qty: number;
+    note: string | null;
+    type: string;
+    rate: number | null;
+    vendor: string | null;
+    ref: string | null;
+  }[];
   stats: ItemMasterStats;
+  /** Most recent purchase with a rate — the prototype's lastPurchase(m). */
+  lastPurchase: { date: string; rate: number; vendor: string | null } | null;
 }
 
 // Loads every master row plus its cross-project stats in three queries
@@ -119,13 +130,28 @@ export async function listItemsWithStats(): Promise<ItemMasterWithStats[]> {
       }
     });
     const stockIn = m.entries.reduce((t, e) => t + toNum(e.qty), 0);
+    // entries arrive newest-first, so the first purchase with a rate is the
+    // latest one (prototype's lastPurchase(m)).
+    const lp = m.entries.find((e) => e.type === "PURCHASE" && e.rate !== null && toNum(e.rate) > 0);
     return {
       id: m.id,
       name: m.name,
       make: m.make,
       unit: m.unit,
-      entries: m.entries.map((e) => ({ id: e.id, date: e.date.toISOString().slice(0, 10), qty: toNum(e.qty), note: e.note })),
+      entries: m.entries.map((e) => ({
+        id: e.id,
+        date: e.date.toISOString().slice(0, 10),
+        qty: toNum(e.qty),
+        note: e.note,
+        type: e.type,
+        rate: e.rate === null ? null : toNum(e.rate),
+        vendor: e.vendor,
+        ref: e.ref,
+      })),
       stats: { rows, req, del, pending: Math.max(req - del, 0), stockIn, current: stockIn - del },
+      lastPurchase: lp
+        ? { date: lp.date.toISOString().slice(0, 10), rate: toNum(lp.rate), vendor: lp.vendor }
+        : null,
     };
   });
 }
@@ -148,7 +174,16 @@ export async function deleteItemMaster(id: string) {
 
 export async function addStockEntry(itemMasterId: string, input: StockEntryInput) {
   return prisma.stockEntry.create({
-    data: { itemMasterId, date: new Date(input.date), qty: input.qty, note: input.note || null },
+    data: {
+      itemMasterId,
+      date: new Date(input.date),
+      qty: input.qty,
+      type: input.type,
+      rate: input.rate,
+      vendor: input.vendor || null,
+      ref: input.ref || null,
+      note: input.note || null,
+    },
   });
 }
 

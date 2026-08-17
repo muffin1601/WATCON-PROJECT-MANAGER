@@ -86,6 +86,11 @@ export function effortForDocument(kind: DocumentClass): "low" | "medium" | "high
  */
 export const LOW_CONFIDENCE_THRESHOLD = 0.75;
 
+/**
+ * Synchronous env-only check, kept for call sites that cannot await. A key
+ * saved in Settings is picked up by services/ai/client.ts at call time, so this
+ * returning false does not necessarily mean reading is unavailable.
+ */
 export function isAiConfigured(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY);
 }

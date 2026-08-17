@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 import { transportUpdateSchema } from "../../../../modules/projects/schema";
 import { deleteTransport, updateTransport } from "../../../../services/transportService";
 import { apiErrorResponse } from "../../../../lib/apiErrors";
+import { requirePermission } from "../../../../lib/auth";
 
 interface Params {
   params: Promise<{ transportId: string }>;
@@ -11,6 +12,7 @@ interface Params {
 export async function PATCH(req: NextRequest, { params }: Params) {
   const { transportId } = await params;
   try {
+    await requirePermission("transport", "amend");
     const input = transportUpdateSchema.parse(await req.json());
     const transport = await updateTransport(transportId, input);
     return NextResponse.json({ transport });
@@ -25,6 +27,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const { transportId } = await params;
   try {
+    await requirePermission("transport", "delete");
     await deleteTransport(transportId);
     return NextResponse.json({ ok: true });
   } catch (err) {

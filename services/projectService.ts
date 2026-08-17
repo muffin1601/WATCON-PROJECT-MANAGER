@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma";
 import { toNum } from "../lib/decimal";
+import { ensureCustomer } from "./customerService";
 import type {
   AmendSalesOrderInput,
   PaymentInput,
@@ -16,31 +17,47 @@ export class ProjectValidationError extends Error {}
 // call into here, per "no business logic inside React components/handlers".
 
 export async function createProject(input: ProjectInput) {
-  return prisma.project.create({
-    data: {
-      name: input.name,
-      client: input.client,
-      site: input.site || null,
-      type: input.type,
-      status: input.status,
-      approvalMode: input.approvalMode,
-      approvalBasisNote: input.approvalBasisNote || null,
-      poNumber: input.poNumber || null,
-      poDate: input.poDate ? new Date(input.poDate) : null,
-      termsGst: input.termsGst,
-      termsTransport: input.termsTransport,
-      paymentTerms: input.paymentTerms || null,
-      items: {
-        create: input.items.map((it, i) => ({
-          description: it.description,
-          make: it.make || "",
-          unit: it.unit,
-          qty: it.qty,
-          rate: it.rate,
-          sortOrder: i,
-        })),
+  return prisma.$transaction(async (tx) => {
+    // Every project ends up attached to a real Customer row, so it appears in
+    // that customer's history and in the References roll-up. A typed-in client
+    // name creates (or matches) the customer rather than being left dangling.
+    let customerId = input.customerId ?? null;
+    if (customerId) {
+      const exists = await tx.customer.findUnique({ where: { id: customerId } });
+      if (!exists) throw new ProjectValidationError("The selected customer no longer exists.");
+    } else {
+      customerId = (await ensureCustomer(input.client, tx))?.id ?? null;
+    }
+
+    return tx.project.create({
+      data: {
+        name: input.name,
+        client: input.client,
+        customerId,
+        refBy: input.refBy || null,
+        salesPerson: input.salesPerson || null,
+        site: input.site || null,
+        type: input.type,
+        status: input.status,
+        approvalMode: input.approvalMode,
+        approvalBasisNote: input.approvalBasisNote || null,
+        poNumber: input.poNumber || null,
+        poDate: input.poDate ? new Date(input.poDate) : null,
+        termsGst: input.termsGst,
+        termsTransport: input.termsTransport,
+        paymentTerms: input.paymentTerms || null,
+        items: {
+          create: input.items.map((it, i) => ({
+            description: it.description,
+            make: it.make || "",
+            unit: it.unit,
+            qty: it.qty,
+            rate: it.rate,
+            sortOrder: i,
+          })),
+        },
       },
-    },
+    });
   });
 }
 
@@ -50,6 +67,9 @@ export async function updateProject(id: string, input: ProjectUpdateInput) {
     data: {
       ...(input.name !== undefined && { name: input.name }),
       ...(input.client !== undefined && { client: input.client }),
+      ...(input.customerId !== undefined && { customerId: input.customerId }),
+      ...(input.refBy !== undefined && { refBy: input.refBy || null }),
+      ...(input.salesPerson !== undefined && { salesPerson: input.salesPerson || null }),
       ...(input.site !== undefined && { site: input.site || null }),
       ...(input.type !== undefined && { type: input.type }),
       ...(input.status !== undefined && { status: input.status }),

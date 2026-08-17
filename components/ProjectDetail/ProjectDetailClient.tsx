@@ -10,6 +10,7 @@ import { SalesOrderTab } from "./SalesOrderTab";
 import { PaymentsTab } from "./PaymentsTab";
 import { ChallansTab } from "./ChallansTab";
 import { TransportTab } from "./TransportTab";
+import { CostingTab } from "./CostingTab";
 import { BillsTab } from "./BillsTab";
 import { SiteAccountsTab } from "./SiteAccountsTab";
 import { DiscountsAmendmentsTab } from "./DiscountsAmendmentsTab";
@@ -17,15 +18,17 @@ import { DocumentsTab } from "./DocumentsTab";
 import { inr } from "../../lib/format";
 import type { CompanySettings } from "../PrintDoc/DocHead";
 import type { ProjectViewModel } from "../../modules/projects/viewModel";
+import type { CostRate } from "../../services/catalogService";
 
 // Ported from renderProject() — same tab order as the prototype: Overview,
-// Sales Order, Challans, Transport, Running Bills, Payments, Site Accounts,
-// Discounts & Amendments, Documents.
+// Sales Order, Challans, Transport, Project Costing, Running Bills, Payments,
+// Site Accounts, Discounts & Amendments, Documents.
 const TAB_DEFS = [
   { key: "overview", label: "Overview" },
   { key: "so", label: "Sales Order" },
   { key: "challans", label: "Challans" },
   { key: "transport", label: "Transport" },
+  { key: "costing", label: "Project Costing" },
   { key: "bills", label: "Running Bills" },
   { key: "payments", label: "Payments" },
   { key: "accounts", label: "Site Accounts" },
@@ -40,11 +43,14 @@ export function ProjectDetailClient({
   settings,
   gstRatePct,
   appPassword,
+  costRates,
 }: {
   project: ProjectViewModel;
   settings: CompanySettings;
   gstRatePct: number;
   appPassword: string;
+  /** normName -> automatic cost rate, resolved server-side for the Costing tab. */
+  costRates: Record<string, CostRate>;
 }) {
   const [tab, setTab] = useState<TabKey>("overview");
   const f = project.financials;
@@ -66,6 +72,7 @@ export function ProjectDetailClient({
       {tab === "so" && <SalesOrderTab project={project} gstRatePct={gstRatePct} appPassword={appPassword} />}
       {tab === "challans" && <ChallansTab project={project} settings={settings} appPassword={appPassword} />}
       {tab === "transport" && <TransportTab project={project} />}
+      {tab === "costing" && <CostingTab project={project} settings={settings} costRates={costRates} />}
       {tab === "bills" && <BillsTab project={project} settings={settings} gstRatePct={gstRatePct} />}
       {tab === "payments" && <PaymentsTab project={project} />}
       {tab === "accounts" && <SiteAccountsTab project={project} settings={settings} gstRatePct={gstRatePct} />}

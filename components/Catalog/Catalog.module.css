@@ -1,0 +1,146 @@
+/* Item Sheet — reuses the prototype's form/table language. */
+
+.priceBlock {
+  background: #fafbfb;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px 0;
+  margin-bottom: 14px;
+}
+
+.note {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.search {
+  max-width: 260px;
+}
+@media (max-width: 640px) {
+  .toolbar {
+    margin-left: 0;
+    width: 100%;
+  }
+  .search {
+    max-width: none;
+    flex: 1 1 100%;
+  }
+}
+
+.pickerList {
+  max-height: 340px;
+  overflow-y: auto;
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.pickerRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.pickerRow:last-child {
+  border-bottom: none;
+}
+.pickerRow:hover,
+.pickerRow:focus-visible {
+  background: var(--primary-soft);
+}
+
+.pickerName {
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+}
+
+.pickerMeta {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.pickerDetails {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 360px;
+}
+
+.pickerNote {
+  padding: 18px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+.warn {
+  color: var(--warn);
+  font-size: 12.5px;
+  margin-bottom: 6px;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+
+/* Duplicate-name group in the review modal — ported from .att block layout. */
+.dupGroup {
+  display: block;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  background: #fafbfb;
+}
+
+/* Product photo cell in the Item Sheet table. */
+.thumb {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+}
+.thumbEmpty {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  background: #eff3f4;
+}
+
+.imagePreview {
+  max-height: 90px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}

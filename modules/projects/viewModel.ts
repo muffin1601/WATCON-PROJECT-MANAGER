@@ -73,6 +73,10 @@ export function buildProjectViewModel(p: ProjectDetail, gstRatePct: number) {
     termsTransport: p.termsTransport,
     paymentTerms: p.paymentTerms,
     aiGenerated: p.aiGenerated,
+    // Per-project costing overrides; the automatic cost rates are resolved
+    // separately (services/costingService) so an item-sheet price change flows
+    // through instead of being frozen here.
+    costing: (p.costing ?? null) as { items?: Record<string, { rate?: number | ""; qty?: number | "" }>; extras?: { name: string; amount: number }[] } | null,
     createdAt: p.createdAt.toISOString(),
 
     items: p.items

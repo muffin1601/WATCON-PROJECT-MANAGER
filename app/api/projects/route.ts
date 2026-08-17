@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { projectInputSchema } from "../../../modules/projects/schema";
 import { createProject } from "../../../services/projectService";
+import { requirePermission } from "../../../lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
+    await requirePermission("projects", "create");
     const body = await req.json();
     const input = projectInputSchema.parse(body);
     const project = await createProject(input);

@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
+import { authErrorResponse } from "./auth";
 
 // Prisma throws P2025 ("Record to update/delete does not exist") for any
 // PATCH/DELETE against an id that isn't there, and P2003 (foreign key
@@ -25,6 +26,12 @@ export function apiErrorResponse(
   genericMessage: string,
   conflictMessage?: string
 ) {
+  // Authentication/authorisation failures must surface as 401/403 rather than
+  // being swallowed into a generic 500. Handled here so every route's existing
+  // catch block gets the correct status without repeating the check.
+  const authRes = authErrorResponse(err);
+  if (authRes) return authRes;
+
   if (isNotFoundError(err)) {
     return NextResponse.json({ error: notFoundMessage }, { status: 404 });
   }

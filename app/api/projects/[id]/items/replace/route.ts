@@ -4,6 +4,7 @@ import { z } from "zod";
 import { poItemInputSchema } from "../../../../../../modules/projects/schema";
 import { replaceProjectItems } from "../../../../../../services/projectService";
 import { apiErrorResponse } from "../../../../../../lib/apiErrors";
+import { requirePermission } from "../../../../../../lib/auth";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -17,6 +18,7 @@ const bodySchema = z.object({ items: z.array(poItemInputSchema) });
 export async function PUT(req: NextRequest, { params }: Params) {
   const { id } = await params;
   try {
+    await requirePermission("salesorder", "amend");
     const body = await req.json();
     const { items } = bodySchema.parse(body);
     const result = await replaceProjectItems(id, items);

@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { DuplicateDocumentError, uploadDocument } from "../../../services/documentService";
 import { EncryptedPdfError, CorruptPdfError } from "../../../services/ocr/pdfText";
 import { DOCUMENT_KINDS, type DocumentKind } from "../../../modules/documents/schema";
+import { requirePermission } from "../../../lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
+    await requirePermission("documents", "create");
     const form = await req.formData();
     const file = form.get("file");
     const kind = form.get("kind");

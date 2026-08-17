@@ -10,6 +10,7 @@ import {
 import { isSupportedForAi } from "../../../../services/ai/ingest";
 import { MAX_AI_FILE_BYTES } from "../../../../services/ai/config";
 import { formatUploadLimit } from "../../../../modules/documents/uploadLimits";
+import { requirePermission } from "../../../../lib/auth";
 
 /**
  * Starts an AI extraction and returns immediately with a job id.
@@ -53,6 +54,7 @@ export async function POST(req: NextRequest) {
   // degrades to the local engine instead of failing the upload.
   let form: FormData;
   try {
+    await requirePermission("salesorder", "create");
     form = await req.formData();
   } catch {
     return NextResponse.json({ error: "Invalid upload." }, { status: 400 });

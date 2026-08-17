@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { MessageParam, ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import { MAX_OUTPUT_TOKENS } from "./config";
+import { prisma } from "../../lib/prisma";
 
 /**
  * Thrown when extraction fails for a reason the user can act on (no API key,
@@ -17,21 +18,40 @@ export class AiExtractionError extends Error {
 }
 
 let cached: Anthropic | null = null;
+let cachedKey: string | null = null;
 
 /**
- * The API key is read from the environment on the server only — it is never
- * sent to, or stored by, the browser. This is the deliberate difference from
- * the HTML prototype, which put the key in localStorage and called
- * api.anthropic.com directly from the page (readable by anyone with the URL).
+ * Resolves the API key on the SERVER only — it is never sent to, or stored by,
+ * the browser. This is the deliberate difference from the HTML prototype, which
+ * put the key in localStorage and called api.anthropic.com directly from the
+ * page (readable by anyone with the URL).
+ *
+ * Order: ANTHROPIC_API_KEY in the environment wins; otherwise the key saved in
+ * Settings is used. The value is never logged.
  */
-function client(): Anthropic {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+async function resolveApiKey(): Promise<string | null> {
+  const fromEnv = process.env.ANTHROPIC_API_KEY;
+  if (fromEnv) return fromEnv;
+  const row = await prisma.setting.findUnique({
+    where: { key: "default" },
+    select: { anthropicApiKey: true },
+  });
+  return row?.anthropicApiKey || null;
+}
+
+async function client(): Promise<Anthropic> {
+  const apiKey = await resolveApiKey();
   if (!apiKey) {
     throw new AiExtractionError(
-      "AI document reading is not configured — set ANTHROPIC_API_KEY on the server."
+      "AI document reading is not configured — set the Anthropic API key in Settings, or ANTHROPIC_API_KEY on the server."
     );
   }
-  if (!cached) cached = new Anthropic({ apiKey, maxRetries: 3 });
+  // Cache per key, so saving a new key in Settings takes effect without a
+  // restart instead of being pinned to the first one used.
+  if (!cached || cachedKey !== apiKey) {
+    cached = new Anthropic({ apiKey, maxRetries: 3 });
+    cachedKey = apiKey;
+  }
   return cached;
 }
 
@@ -80,7 +100,7 @@ export async function runExtraction<T>(args: RunExtractionArgs): Promise<RunExtr
   const messages: MessageParam[] = [{ role: "user", content }];
 
   try {
-    const stream = client().messages.stream({
+    const stream = (await client()).messages.stream({
       model,
       max_tokens: maxTokens,
       // Cache the instruction block: it is identical on every call for a

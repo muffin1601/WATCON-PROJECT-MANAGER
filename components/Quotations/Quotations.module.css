@@ -1,0 +1,157 @@
+/* Quotations — same card/table/form language as the rest of the app. */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.search {
+  max-width: 260px;
+}
+@media (max-width: 640px) {
+  .toolbar {
+    margin-left: 0;
+    width: 100%;
+  }
+  .search {
+    max-width: none;
+    flex: 1 1 100%;
+  }
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+
+.linkBtn {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--primary-dark);
+  font-weight: 700;
+  font-size: inherit;
+  font-family: inherit;
+  cursor: pointer;
+}
+.linkBtn:hover {
+  text-decoration: underline;
+}
+
+/* Editor header: title + status + actions, wrapping cleanly on small screens. */
+.editorHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.editorActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-left: auto;
+}
+@media (max-width: 640px) {
+  .editorActions {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+/* Sticky totals strip so the money stays visible while editing a long quote. */
+.totalsBar {
+  position: sticky;
+  bottom: 0;
+  background: var(--surface);
+  border-top: 2px solid var(--ink);
+  padding: 10px 14px;
+  font-weight: 600;
+  font-size: 13.5px;
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+  z-index: 5;
+}
+.totalsBar .grand {
+  margin-left: auto;
+  font-size: 15px;
+}
+
+.sectionChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.sectionChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  border-radius: 99px;
+  padding: 5px 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.sectionChip button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: inherit;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0 2px;
+}
+.sectionChip button:hover {
+  color: var(--danger);
+}
+
+.groupRow td {
+  background: #f3f6f7;
+  font-weight: 700;
+}
+
+.subtotalRow td {
+  font-style: italic;
+}
+
+.dirty {
+  color: var(--warn);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.saved {
+  color: var(--ok);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+/* Narrow numeric inputs inside the line-item table. */
+.qty {
+  width: 84px;
+  text-align: right;
+}
+.rate {
+  width: 100px;
+  text-align: right;
+}
+.disc {
+  width: 66px;
+  text-align: right;
+}
+.unit {
+  width: 70px;
+}
